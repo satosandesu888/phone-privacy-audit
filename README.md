@@ -65,7 +65,9 @@ WebRTC検査がOSの「ローカルネットワークへのアクセス」許可
 
 ## ホスティング
 
-静的ファイルを置くだけで動く。`main` への push で `.github/workflows/pages.yml` が走り、GitHub Pages へ配信される（`settings-data.json` の妥当性を検査してからデプロイする）。Pages が未設定の場合は `actions/configure-pages` の `enablement: true` が有効化する。
+静的ファイルを置くだけで動く。`main` への push で `.github/workflows/pages.yml` が走り、`settings-data.json` を検査したうえで GitHub Pages へ配信する。
+
+**初回だけ手動の設定が要る。** Settings → Pages → Source を「GitHub Actions」にする。Actions のトークンには Pages サイトを新規作成する権限が無く、ワークフロー側からは有効化できない（`Resource not accessible by integration` になる）。なお **private リポジトリの Pages は GitHub Pro 以上が必要** で、無料プランならリポジトリを public にする。それまでは `deploy` ジョブだけが失敗し、`validate` ジョブは通常どおり通る。
 
 他のホスティングに置く場合も、`index.html` / `support.js` / `settings-data.json` を同じディレクトリに並べるだけでよい（`.nojekyll` 同梱）。
 

@@ -15,24 +15,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # 配信データの検査。Pages の設定状態とは無関係に常に走る。
+  validate:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-
-      # 静的サイトなのでビルドは無い。settings-data.json が壊れていないことだけ確かめる。
       - name: Validate settings-data.json
         run: |
           python3 - <<'PY'
-          import json, sys
+          import json
           d = json.load(open('settings-data.json', encoding='utf-8'))
           assert isinstance(d.get('version'), str) and d['version'], 'version が空です'
           ids = [i['id'] for a in d['apps'] for i in a['items']]
           assert len(ids) == len(set(ids)), '項目IDが重複しています'
           for a in d['apps']:
+              assert a.get('id') and a.get('name'), 'アプリの id / name が未設定です'
               for i in a['items']:
                   for k in ('id', 'title', 'path', 'severity', 'why'):
                       assert i.get(k), f"{i.get('id')}: {k} が未設定です"
@@ -40,14 +37,19 @@ jobs:
           print(f"ok: version={d['version']} apps={len(d['apps'])} items={len(ids)}")
           PY
 
-      # Pages が未設定なら enablement: true が有効化する
+  # Pages を一度 Settings → Pages で有効化し、Source を「GitHub Actions」に
+  # しておく必要がある。未設定のうちはこのジョブだけが失敗する。
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
-
       - id: deployment
         uses: actions/deploy-pages@v4
