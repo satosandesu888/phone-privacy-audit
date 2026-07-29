@@ -1,0 +1,440 @@
+{
+  "version": "2026-07-29c",
+  "apps": [
+    {
+      "id": "line",
+      "name": "LINE",
+      "icon": "L",
+      "items": [
+        {
+          "id": "line-talkroom-info",
+          "title": "トークルーム情報の提供をオフ",
+          "path": "設定 → プライバシー管理 → 情報の提供 → トークルーム情報",
+          "severity": "high",
+          "why": "トークルーム内のURLやスタンプの利用状況が、サービス改善名目でLINEヤフーに送られる。既定はオン。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-web-ads",
+          "title": "ウェブ追跡型広告の受信をオフ",
+          "path": "設定 → プライバシー管理 → 情報の提供 → ウェブ追跡型広告の受信",
+          "severity": "medium",
+          "why": "外部サイトの閲覧履歴をもとにLINE内の広告が最適化される。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-ocr-photo",
+          "title": "文字認識用の写真の提供をオフ",
+          "path": "設定 → プライバシー管理 → 情報の提供",
+          "severity": "high",
+          "why": "OCR精度向上のために、送受信した写真が提供対象になる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-delete-past",
+          "title": "過去に提供済みの情報を削除",
+          "path": "設定 → プライバシー管理 → 情報の提供 → 情報の削除",
+          "severity": "medium",
+          "why": "オフにしても過去分は残る。削除は別操作。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-id-search",
+          "title": "IDによる友だち追加を許可をオフ",
+          "path": "設定 → プライバシー管理 → IDによる友だち追加を許可",
+          "severity": "medium",
+          "why": "IDを総当たりされて見知らぬ相手に追加されるのを防ぐ。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-letter-sealing",
+          "title": "Letter Sealing がオンか確認",
+          "path": "設定 → プライバシー管理 → Letter Sealing",
+          "severity": "high",
+          "why": "メッセージの端末間暗号化。既定オンだが、相手側もオンでないと機能しない。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-app-access",
+          "title": "アプリからの情報アクセスを見直し",
+          "path": "設定 → プライバシー管理 → アプリからの情報アクセス",
+          "severity": "medium",
+          "why": "連携アプリに渡すプロフィール情報の範囲を絞る。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "line-yahoo-link",
+          "title": "Yahoo! JAPAN IDとの連携を確認",
+          "path": "設定 → account center",
+          "severity": "medium",
+          "why": "連携すると双方のサービス間でアカウント情報が結びつく。使う予定がなければ解除できる。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "google",
+      "name": "Google / Gemini",
+      "icon": "G",
+      "items": [
+        {
+          "id": "google-gemini-activity",
+          "title": "Geminiアプリアクティビティをオフ",
+          "path": "Gemini → 設定 → アクティビティ → Geminiアプリアクティビティ",
+          "severity": "high",
+          "why": "既定オン。入力したテキスト・画像・音声・添付ファイルが保存され、モデル改善に使われる範囲に入る。オフにすると過去のチャット履歴が使えなくなる点は要覚悟。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "google-auto-delete",
+          "title": "アクティビティの自動削除を3か月に",
+          "path": "マイアクティビティ → 自動削除オプションを選択 → 3か月",
+          "severity": "medium",
+          "why": "選択肢は3か月・18か月・36か月。既定はより長い期間。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "google-waa",
+          "title": "ウェブとアプリのアクティビティを見直し",
+          "path": "Googleアカウント → データとプライバシー → ウェブとアプリのアクティビティ",
+          "severity": "medium",
+          "why": "検索・閲覧履歴の保存範囲。「Chromeの履歴」の同梱チェックも確認する。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "ios",
+      "name": "iOS 26",
+      "icon": "iOS",
+      "items": [
+        {
+          "id": "ios-reduce-transparency",
+          "title": "透明度を下げるをオン",
+          "path": "設定 → アクセシビリティ → 画面表示とテキストサイズ → 透明度を下げる",
+          "severity": "low",
+          "why": "Liquid Glassのぼかし描画をGPUが毎フレーム計算しなくなる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "ios-reduce-motion",
+          "title": "視差効果を減らすをオン",
+          "path": "設定 → アクセシビリティ → 動作 → 視差効果を減らす",
+          "severity": "low",
+          "why": "透明度とセットで効く。アニメーションの描画負荷が下がる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "ios-tracking",
+          "title": "アプリからのトラッキング要求を許可をオフ",
+          "path": "設定 → プライバシーとセキュリティ → トラッキング",
+          "severity": "high",
+          "why": "各アプリが個別に許可を求めてくる仕組みごと止める。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "ios-personalized-ads",
+          "title": "パーソナライズされた広告をオフ",
+          "path": "設定 → プライバシーとセキュリティ → Appleの広告",
+          "severity": "medium",
+          "why": "App StoreやApple News内の広告最適化にアカウント情報が使われる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "ios-analytics",
+          "title": "解析データの共有をオフ",
+          "path": "設定 → プライバシーとセキュリティ → 解析および改善",
+          "severity": "low",
+          "why": "利用状況データのAppleへの送信を止める。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "meta",
+      "name": "Instagram / Facebook",
+      "icon": "Meta",
+      "items": [
+        {
+          "id": "meta-muse-image-optout",
+          "title": "AI画像合成の素材利用をオプトアウト",
+          "path": "プライバシーセンター → 生成AIモデルと機能 → 異議申し立て",
+          "severity": "high",
+          "why": "公開アカウントの写真は、拒否しない限り自動でMetaの画像生成AIの素材にされる。通知も来ない。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "meta-ai-training-optout",
+          "title": "投稿・活動データのAI学習利用に異議申し立て",
+          "path": "設定 → プライバシーセンター → 異議申し立て",
+          "severity": "high",
+          "why": "公開設定の投稿は生成AIの学習対象になりうる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "meta-account-privacy",
+          "title": "公開範囲を「フォロワーのみ」に見直し",
+          "path": "設定 → プライバシー → アカウントのプライバシー",
+          "severity": "medium",
+          "why": "非公開アカウントにすると、AI学習対象からも外れやすくなる。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "x",
+      "name": "X (旧Twitter)",
+      "icon": "X",
+      "items": [
+        {
+          "id": "x-grok-datasharing",
+          "title": "Grokへのデータ共有をオフ",
+          "path": "設定とプライバシー → プライバシーと安全 → データ共有とカスタマイズ → Grok",
+          "severity": "high",
+          "why": "投稿とGrokとのやり取りがxAIのモデル訓練に使われる。既定オン。ウェブ版のみ変更可。",
+          "watch": "リロード後に自動でオンへ戻る不具合が報告されている。定期的な再確認が必要。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "x-personalized-ads",
+          "title": "興味関心に基づく広告をオフ",
+          "path": "設定とプライバシー → プライバシーと安全 → 広告の設定",
+          "severity": "medium",
+          "why": "行動履歴に基づく広告表示の停止。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "tiktok",
+      "name": "TikTok",
+      "icon": "TT",
+      "items": [
+        {
+          "id": "tiktok-personalized-ads",
+          "title": "パーソナライズド広告をオフ",
+          "path": "プロフィール → 設定とプライバシー → 広告 → データを使用したパーソナライズ",
+          "severity": "medium",
+          "why": "アプリ内外の行動データが広告表示に使われる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "tiktok-off-activity",
+          "title": "TikTok外でのアクティビティを消去",
+          "path": "設定とプライバシー → 広告 → TikTok外でのアクティビティ",
+          "severity": "medium",
+          "why": "広告パートナーが共有した外部の行動データを削除できる。24時間ごとに再消去可能。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "tiktok-private-account",
+          "title": "非公開アカウントを確認",
+          "path": "プロフィール → 設定とプライバシー → プライバシー",
+          "severity": "low",
+          "why": "公開設定だと投稿が誰でも見られ、リミックスやデュエットの対象にもなる。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon / Alexa",
+      "icon": "AMZ",
+      "items": [
+        {
+          "id": "amazon-alexa-voice-history",
+          "title": "音声履歴の自動削除を3か月に設定",
+          "path": "Alexaアプリ → その他 → Alexaプライバシー → Alexaデータを管理",
+          "severity": "medium",
+          "why": "既定は「削除するまで保存」。3か月・18か月・保存しないから選べる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "amazon-ads-personalization",
+          "title": "広告のカスタマイズをオフ",
+          "path": "Amazonアカウント → ログインとセキュリティ → 広告の設定",
+          "severity": "low",
+          "why": "購入・閲覧履歴に基づく広告最適化を止める。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "openai",
+      "name": "ChatGPT / OpenAI",
+      "icon": "GPT",
+      "items": [
+        {
+          "id": "openai-improve-model-off",
+          "title": "「すべての人のためにモデルを改善する」をオフ",
+          "path": "設定 → データコントロール",
+          "severity": "high",
+          "why": "既定オン。会話データがモデル学習に使われる。オフにしてもオフ以前の会話は対象外にならない。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "openai-temporary-chat",
+          "title": "機微な内容は一時チャットを使う",
+          "path": "新規チャット → 一時チャット",
+          "severity": "medium",
+          "why": "履歴に残らず、学習にも使われない。ただし共有リンクを作った内容は例外的に公開情報として扱われる。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "icon": "GH",
+      "items": [
+        {
+          "id": "github-2fa",
+          "title": "2要素認証（TOTP）が有効か確認",
+          "path": "Settings → Password and authentication → Two-factor methods",
+          "severity": "high",
+          "why": "SMSより認証アプリ（TOTP）方式が推奨。復旧コードは印刷などオフラインで保管する。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "github-oauth-apps",
+          "title": "認可済みOAuthアプリを棚卸し",
+          "path": "Settings → Applications → Authorized OAuth Apps",
+          "severity": "medium",
+          "why": "過去に許可した外部サービスがリポジトリへのアクセス権を持ったまま残っていることが多い。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "github-security-log",
+          "title": "セキュリティログで身に覚えのないログインを確認",
+          "path": "Settings → Password and authentication → Security log",
+          "severity": "medium",
+          "why": "自分がしていない時間帯のログインがあれば侵害の兆候。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "icon": "DC",
+      "items": [
+        {
+          "id": "discord-personalize-off",
+          "title": "データを使用したパーソナライズをオフ",
+          "path": "ユーザー設定 → データ&プライバシー → Discordの体験をパーソナライズ",
+          "severity": "medium",
+          "why": "アカウント固有の行動データがおすすめ表示に使われなくなる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "discord-dm-restrict",
+          "title": "サーバーメンバーからのDMを制限",
+          "path": "ユーザー設定 → プライバシーと安全",
+          "severity": "medium",
+          "why": "友だち以外の同一サーバー参加者から届く不要なDMやスパムを防ぐ。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp",
+      "icon": "WA",
+      "items": [
+        {
+          "id": "whatsapp-last-seen",
+          "title": "最終ログイン・プロフィール写真の公開範囲を絞る",
+          "path": "設定 → アカウント → プライバシー",
+          "severity": "medium",
+          "why": "「誰にでも」から「連絡先のみ」または「なし」に変更できる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "whatsapp-linked-devices",
+          "title": "リンク済みデバイスを確認",
+          "path": "設定 → リンク済みのデバイス",
+          "severity": "high",
+          "why": "見覚えのない端末が接続されていないか定期的に確認し、あればログアウトさせる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "whatsapp-backup-e2e",
+          "title": "バックアップのエンドツーエンド暗号化をオン",
+          "path": "設定 → チャット → チャットのバックアップ → エンドツーエンド暗号化バックアップ",
+          "severity": "medium",
+          "why": "既定オフ。オフのままだとクラウド上のバックアップは独自の暗号化を受けない。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "yahoo",
+      "name": "Yahoo! JAPAN",
+      "icon": "Y",
+      "items": [
+        {
+          "id": "yahoo-line-link",
+          "title": "LINEとのID連携状況を確認",
+          "path": "アカウントセンター（LINEアプリ内、または id.yahoo.co.jp）",
+          "severity": "medium",
+          "why": "連携すると双方のサービスに情報が結びつく。使っていなければ「解除」をタップするだけで切れる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "yahoo-ads-personalization",
+          "title": "広告のパーソナライズをオフ",
+          "path": "プライバシーセンター → プライバシー設定 → 広告",
+          "severity": "low",
+          "why": "検索・閲覧履歴に基づく広告最適化を止める。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "paypay",
+      "name": "PayPay",
+      "icon": "PP",
+      "items": [
+        {
+          "id": "paypay-external-link",
+          "title": "外部サービス連携を棚卸し",
+          "path": "アプリ → アカウント → 外部サービス連携",
+          "severity": "medium",
+          "why": "連携済みサービスとそこに提供されている情報の範囲を一覧で確認できる。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "paypay-info-disclosure",
+          "title": "情報の開示・非開示設定を確認",
+          "path": "プライバシー設定方法ページ経由 → 各種開示設定",
+          "severity": "low",
+          "why": "自分の情報がどこまで公開・共有されているかを見直す。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    },
+    {
+      "id": "vpn",
+      "name": "VPN（Mullvad等）",
+      "icon": "VPN",
+      "items": [
+        {
+          "id": "vpn-killswitch",
+          "title": "キルスイッチが有効か確認",
+          "path": "VPNアプリ → 設定 → VPN設定 → キルスイッチ / ローカルネットワーク共有",
+          "severity": "high",
+          "why": "VPN接続が切れた瞬間に生の通信が漏れるのを防ぐ。設定変更後は必ず再確認する。",
+          "verifiedAt": "2026-07-29"
+        },
+        {
+          "id": "vpn-dns-leak-test",
+          "title": "DNSリークテストを定期的に実施",
+          "path": "ブラウザで dnsleaktest.com などにアクセスして確認",
+          "severity": "medium",
+          "why": "表示されたDNSサーバーがVPN事業者のものでなければ、DNSクエリが漏れている可能性がある。",
+          "verifiedAt": "2026-07-29"
+        }
+      ]
+    }
+  ]
+}

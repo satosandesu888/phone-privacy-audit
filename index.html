@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>個人情報保護監査 — iPhone Privacy Audit</title>
+<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断・通知設定。データは端末内にのみ保存され、外部へ送信されません。">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;-webkit-font-smoothing:antialiased}
+input,select,textarea{font-family:inherit}
+@keyframes pa-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+::selection{background:oklch(0.5 0.18 25 / .25)}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:oklch(0.93 0.008 85);display:flex;justify-content:center;padding:28px 14px 70px;font-family:'Source Serif 4',serif;color:oklch(0.22 0.01 40)">
+<div style="width:100%;max-width:480px;position:relative">
+
+<sc-if value="{{ hasSheet }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheetBackdrop }}" style="position:fixed;inset:0;background:oklch(0.15 0.02 40 / .5);z-index:60;display:flex;align-items:flex-end;justify-content:center">
+  <div style="background:oklch(0.99 0.005 85);width:100%;max-width:480px;max-height:86vh;overflow-y:auto;border-radius:14px 14px 0 0;border:1px solid oklch(0.78 0.01 60);padding:22px 20px 30px" key="{{ sheetKey }}">
+
+    <sc-if value="{{ isSettingsSheet }}">
+      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">CONFIG</div>
+      <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 14px">設定</h3>
+      <div style="display:flex;justify-content:space-between;font:400 12.5px/1.7 'IBM Plex Mono',monospace;padding:9px 0;border-bottom:1px dotted oklch(0.7 0.01 60);margin-bottom:16px"><span style="color:oklch(0.45 0.01 40)">データバージョン</span><b style="font-weight:600">{{ dataVersion }}</b></div>
+      <div style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:8px">保護レベル</div>
+      <div style="display:flex;gap:6px;margin-bottom:18px">
+        <sc-for list="{{ settingsLevelOptions }}" as="lv" hint-placeholder-count="3">
+          <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
+        </sc-for>
+      </div>
+      <button onClick="{{ openRaw }}" style="width:100%;padding:11px;border-radius:7px;border:1px dashed oklch(0.7 0.01 60);background:none;color:oklch(0.4 0.01 40);font:600 12px 'IBM Plex Mono',monospace;cursor:pointer">生データを見る</button>
+
+      <button onClick="{{ closeSheet }}" style="width:100%;margin-top:8px;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">閉じる</button>
+    </sc-if>
+
+    <sc-if value="{{ isRawSheet }}">
+      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">RAW DATA</div>
+      <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 10px">いま読み込んでいるデータ</h3>
+      <p style="font:400 12px/1.7 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 12px">配信元の settings-data.json を書き換えて git push するだけで、全ユーザーの表示が更新されます。手動での貼り付けは不要です。</p>
+      <pre style="background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);padding:12px;overflow-x:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;line-height:1.6;color:oklch(0.35 0.05 40);border-radius:7px;max-height:50vh;margin:0">{{ rawDataText }}</pre>
+      <button onClick="{{ closeSheet }}" style="width:100%;margin-top:12px;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">閉じる</button>
+    </sc-if>
+
+    <sc-if value="{{ isAccountFormSheet }}">
+      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">LEDGER ENTRY</div>
+      <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 16px">{{ accountFormTitle }}</h3>
+      <div style="margin-bottom:13px">
+        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">サービス名</label>
+        <input ref="{{ serviceRef }}" defaultValue="{{ formServiceDefault }}" placeholder="例：WordPress、note、Notion" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'Source Serif 4',serif;font-size:13.5px" />
+      </div>
+      <div style="margin-bottom:13px">
+        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">ログイン方法</label>
+        <select ref="{{ methodRef }}" defaultValue="{{ formMethodDefault }}" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+          <sc-for list="{{ methodOptions }}" as="m" hint-placeholder-count="4">
+            <option value="{{ m }}">{{ m }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <div style="margin-bottom:13px">
+        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">状態</label>
+        <select ref="{{ statusRef }}" defaultValue="{{ formStatusDefault }}" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+          <option value="active">連携中</option>
+          <option value="unlinked">解除済み</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">メモ（任意）</label>
+        <textarea ref="{{ memoRef }}" defaultValue="{{ formMemoDefault }}" placeholder="例：仕事用アカウント、要解除検討中 など" style="width:100%;min-height:64px;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'Source Serif 4',serif;font-size:13px;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onClick="{{ closeSheet }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">キャンセル</button>
+        <button onClick="{{ saveAccount }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid oklch(0.22 0.01 40);background:oklch(0.22 0.01 40);color:oklch(0.97 0.008 85);font:700 12px 'IBM Plex Mono',monospace;cursor:pointer">保存</button>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
+<div style="padding:34px 0 10px">
+  <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.14em;margin-bottom:8px">INTAKE FORM</div>
+  <h2 style="font:700 24px/1.5 'Source Serif 4',serif;margin:0 0 12px">知らぬ間に追加される項目を、<br>定期的に見直す。</h2>
+  <p style="font:400 13.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 22px">端末に入っているアプリを自動で読み取ることはできません。使っているものを選んでください。</p>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <div onClick="{{ toggleAllTemp }}" style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:3px;cursor:pointer">{{ allTempSelectedLabel }}</div>
+  </div>
+  <div style="border:1px solid oklch(0.78 0.01 60);border-radius:8px;overflow:hidden;margin-bottom:20px;background:oklch(0.99 0.005 85)">
+    <sc-for list="{{ onboardingApps }}" as="a" hint-placeholder-count="6">
+      <div onClick="{{ a.toggle }}" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
+        <div style="width:20px;height:20px;flex:none;border:1.5px solid oklch(0.4 0.01 40);border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ a.checkColor }};background:{{ a.checkBg }}">✓</div>
+        <div style="flex:1;min-width:0">
+          <div style="font:600 14.5px 'Source Serif 4',serif">{{ a.name }}</div>
+        </div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40)">{{ a.count }}項目</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">保護レベル</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+    <sc-for list="{{ levelOptions }}" as="lv" hint-placeholder-count="3">
+      <div onClick="{{ lv.click }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid {{ lv.borderColor }};border-radius:7px;background:{{ lv.bg }};cursor:pointer">
+        <div style="width:18px;height:18px;flex:none;border:1.5px solid {{ lv.dotBorder }};border-radius:50%;display:grid;place-items:center">
+          <sc-if value="{{ lv.selected }}"><div style="width:9px;height:9px;border-radius:50%;background:oklch(0.5 0.18 25)"></div></sc-if>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font:600 13.5px 'Source Serif 4',serif">{{ lv.label }}</div>
+          <div style="font:400 11px/1.5 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-top:2px">{{ lv.desc }}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <button onClick="{{ startCheck }}" disabled="{{ onboardingDisabled }}" style="width:100%;padding:14px;border-radius:8px;border:1px solid oklch(0.22 0.01 40);background:{{ onboardingBtnBg }};color:{{ onboardingBtnColor }};font:700 14px 'IBM Plex Mono',monospace;letter-spacing:.03em;cursor:pointer">確認を開始</button>
+  <p style="text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:20px">データは端末内にのみ保存され、外部へ送信されません。</p>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
+<!-- spacer to keep hint balance -->
+</sc-if>
+
+<sc-if value="{{ showMain }}">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 2px 12px">
+    <div style="font:700 14px 'Source Serif 4',serif;letter-spacing:.01em">個人情報保護監査</div>
+    <div style="display:flex;gap:8px">
+      <div onClick="{{ resetPicked }}" style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid oklch(0.78 0.01 60);border-radius:6px;background:oklch(0.99 0.005 85);color:oklch(0.4 0.01 40);font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;flex:none">対象アプリを変更</div>
+      <div onClick="{{ openSettings }}" style="width:32px;height:32px;flex:none;border:1px solid oklch(0.78 0.01 60);border-radius:6px;display:grid;place-items:center;font-size:13px;color:oklch(0.45 0.01 40);cursor:pointer;background:oklch(0.99 0.005 85)">⚙</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:0;margin-bottom:0;position:sticky;top:0;z-index:10;padding-top:2px">
+    <sc-for list="{{ navTabs }}" as="t" hint-placeholder-count="3">
+      <div onClick="{{ t.click }}" style="flex:1;text-align:center;padding:10px 4px;background:{{ t.bg }};border:1px solid oklch(0.78 0.01 60);border-bottom:{{ t.borderBottom }};border-radius:7px 7px 0 0;font:{{ t.weight }} 11px 'IBM Plex Mono',monospace;color:{{ t.color }};margin-left:{{ t.marginLeft }};cursor:pointer;position:relative;top:{{ t.top }}">{{ t.label }}</div>
+    </sc-for>
+  </div>
+
+  <div style="border:1px solid oklch(0.78 0.01 60);border-top:none;border-radius:0 0 9px 9px;background:oklch(0.97 0.008 85);padding:20px 18px 28px">
+
+    <div style="margin-bottom:14px">
+      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:5px">FILE NO. {{ dataVersion }}</div>
+      <div style="font:700 20px/1.3 'Source Serif 4',serif">{{ viewTitle }}</div>
+    </div>
+
+    <sc-if value="{{ isCheckView }}">
+      <div style="display:flex;gap:14px;padding:10px 0;border-top:1px solid oklch(0.78 0.01 60);border-bottom:1px solid oklch(0.78 0.01 60);font:400 12px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);margin-bottom:18px;flex-wrap:wrap">
+        <span style="color:oklch(0.5 0.18 25);font-weight:700">要対応 {{ nHigh }}</span>
+        <span>推奨 {{ nMed }}</span>
+        <span>任意 {{ nLow }}</span>
+        <span style="margin-left:auto;color:oklch(0.5 0.1 150)">済 {{ doneFrac }}</span>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:20px">
+        <sc-for list="{{ subTabs }}" as="s" hint-placeholder-count="3">
+          <div onClick="{{ s.click }}" style="padding:6px 11px;border-radius:5px;background:{{ s.bg }};font:{{ s.weight }} 10.5px 'IBM Plex Mono',monospace;color:{{ s.color }};cursor:pointer;white-space:nowrap;flex-shrink:0">{{ s.label }} {{ s.count }}</div>
+        </sc-for>
+      </div>
+
+      <sc-for list="{{ appGroups }}" as="g" hint-placeholder-count="3">
+        <div style="margin-bottom:22px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+            <div style="font:700 10.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.4 0.01 40);white-space:nowrap">{{ g.name }}</div>
+            <div style="flex:1;height:2px;background:repeating-linear-gradient(90deg,oklch(0.55 0.01 60) 0,oklch(0.55 0.01 60) 5px,transparent 5px,transparent 9px)"></div>
+            <sc-if value="{{ g.allDone }}"><div style="font:600 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.1 150)">対応済</div></sc-if>
+          </div>
+
+          <sc-for list="{{ g.items }}" as="item" hint-placeholder-count="2">
+            <div style="position:relative;border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:15px 15px 13px;margin-bottom:12px;background:oklch(0.99 0.005 85);opacity:{{ item.opacity }}">
+              <sc-if value="{{ item.isHigh }}">
+                <div style="position:absolute;top:-11px;right:12px;border:2px solid oklch(0.5 0.18 25);color:oklch(0.5 0.18 25);font:700 10px 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:2px;transform:{{ item.stampRotate }};background:oklch(0.99 0.005 85);letter-spacing:.05em">要対応</div>
+              </sc-if>
+              <sc-if value="{{ item.isMedium }}">
+                <div style="position:absolute;top:-11px;right:12px;border:2px solid oklch(0.22 0.01 40);color:oklch(0.22 0.01 40);font:700 10px 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:2px;transform:{{ item.stampRotate }};background:oklch(0.99 0.005 85);letter-spacing:.05em">推奨</div>
+              </sc-if>
+              <div style="display:flex;gap:7px;align-items:baseline;font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-bottom:5px">
+                <span>{{ item.fileNo }}</span>
+                <sc-if value="{{ item.isNewItem }}"><span style="color:oklch(0.5 0.18 25);font-weight:700">・ NEW</span></sc-if>
+              </div>
+              <div style="font:600 15px/1.5 'Source Serif 4',serif;margin-bottom:8px;text-decoration:{{ item.strike }}">{{ item.title }}</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);border-bottom:1px dotted oklch(0.6 0.01 60);padding-bottom:6px;margin-bottom:8px">{{ item.path }}</div>
+              <div style="font-style:italic;font:italic 400 12.5px/1.75 'Source Serif 4',serif;color:oklch(0.4 0.01 40)">{{ item.why }}</div>
+              <sc-if value="{{ item.hasWatch }}">
+                <div style="font:400 11.5px/1.6 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);border-top:1px dashed oklch(0.5 0.18 25);padding-top:8px;margin-top:9px">注記：{{ item.watch }}</div>
+              </sc-if>
+              <div style="margin-top:11px;font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 60)">確認日 {{ item.verifiedAt }}</div>
+              <div style="margin-top:9px;display:flex;justify-content:flex-end">
+                <div onClick="{{ item.toggle }}" style="width:24px;height:24px;border:1.5px solid {{ item.checkBorder }};border-radius:3px;display:grid;place-items:center;font:700 13px 'IBM Plex Mono',monospace;color:{{ item.checkColor }};cursor:pointer">✓</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ checkIsEmpty }}">
+        <div style="text-align:center;padding:46px 16px;color:oklch(0.5 0.01 40);font:400 13px 'Source Serif 4',serif">
+          <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.5 0.1 150);margin-bottom:10px">[ CLEAR ]</div>
+          {{ checkEmptyMessage }}
+        </div>
+      </sc-if>
+    </sc-if>
+
+    <sc-if value="{{ isAccountsView }}">
+      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">どのサービスに、どのアカウントでログインしているかを記録する台帳です。パスワードは保存しません。「LINEとYahoo!の連携は解除したか」「GitHubアカウントでWordPressにログインしている」といった、SSOの結びつきを棚卸しするためのものです。</p>
+      <button onClick="{{ openNewAccount }}" style="width:100%;padding:13px;border-radius:7px;border:1px dashed oklch(0.7 0.01 60);background:none;color:oklch(0.4 0.01 40);font:600 12.5px 'IBM Plex Mono',monospace;cursor:pointer;margin-bottom:16px">＋ 連携を記録する</button>
+
+      <sc-for list="{{ accountCards }}" as="acc" hint-placeholder-count="2">
+        <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:14px 15px;margin-bottom:12px;background:oklch(0.99 0.005 85)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+            <div style="font:700 15px 'Source Serif 4',serif">{{ acc.service }}</div>
+            <div style="font:700 9.5px 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:2px;border:1.5px solid {{ acc.statusColor }};color:{{ acc.statusColor }};transform:{{ acc.statusRotate }}">{{ acc.statusLabel }}</div>
+          </div>
+          <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:4px">ログイン方法： <b style="color:oklch(0.22 0.01 40);font-weight:600">{{ acc.method }}</b></div>
+          <sc-if value="{{ acc.hasMemo }}"><div style="font:italic 400 12px/1.7 'Source Serif 4',serif;color:oklch(0.4 0.01 40);margin-top:6px">{{ acc.memo }}</div></sc-if>
+          <div style="display:flex;gap:14px;margin-top:10px">
+            <span onClick="{{ acc.edit }}" style="font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:2px;cursor:pointer">編集</span>
+            <span onClick="{{ acc.del }}" style="font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);text-decoration:underline;text-underline-offset:2px;cursor:pointer">削除</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ accountsEmpty }}">
+        <div style="text-align:center;padding:46px 16px;color:oklch(0.5 0.01 40);font:400 13px 'Source Serif 4',serif">
+          <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.55 0.01 40);margin-bottom:10px">[ EMPTY ]</div>
+          まだ何も記録されていません。
+        </div>
+      </sc-if>
+      <p style="font:400 10.5px/1.8 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 40);margin-top:18px;text-align:center">この台帳は常に端末内にのみ保存されます。</p>
+    </sc-if>
+
+    <sc-if value="{{ isNetworkView }}">
+      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 18px">VPN接続やプライバシー保護が正常に機能しているか確認します。本ページのデータは<b>外部には一切送信されません</b>——すべて端末内のみで処理されます。</p>
+
+      <sc-if value="{{ isNetworkNotStarted }}">
+        <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:16px;background:oklch(0.99 0.005 85);margin-bottom:12px">
+          <div style="font:700 13.5px 'Source Serif 4',serif;margin-bottom:6px">診断には数秒かかります</div>
+          <div style="font:400 12px/1.75 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin-bottom:12px">IP・DNS・WebRTC等、複数の項目を順に確認します。<b>WebRTC検査では、iOS/ブラウザによっては「ローカルネットワークへのアクセス」の確認ダイアログが表示されることがあります</b>——これはOS標準の許可確認であり、外部送信ではありません。</div>
+          <button onClick="{{ startDiagnostics }}" style="width:100%;padding:12px;border-radius:7px;border:1px solid oklch(0.22 0.01 40);background:oklch(0.22 0.01 40);color:oklch(0.97 0.008 85);font:700 13px 'IBM Plex Mono',monospace;cursor:pointer">診断を開始する</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isNetworkStarted }}">
+      <sc-for list="{{ netChecks }}" as="c" hint-placeholder-count="3">
+        <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:15px;margin-bottom:12px;background:oklch(0.99 0.005 85)">
+          <div style="font:700 14px 'Source Serif 4',serif;margin-bottom:5px">{{ c.title }}</div>
+          <div style="font:400 12px/1.7 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin-bottom:10px">{{ c.desc }}</div>
+          <sc-if value="{{ c.loading }}">
+            <div style="display:flex;align-items:center;gap:8px;font:400 12px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40)">
+              <span style="display:inline-block;width:10px;height:10px;border:1.5px solid oklch(0.5 0.18 25);border-right-color:transparent;border-radius:50%;animation:pa-spin .6s linear infinite"></span>確認中...
+            </div>
+          </sc-if>
+          <sc-if value="{{ c.hasResultText }}">
+            <div style="font:600 12.5px 'IBM Plex Mono',monospace;color:{{ c.resultColor }}">{{ c.resultText }}</div>
+          </sc-if>
+          <sc-if value="{{ c.hasRows }}">
+            <div style="margin-top:9px;border-top:1px dotted oklch(0.75 0.01 60);padding-top:8px">
+              <sc-for list="{{ c.rows }}" as="row" hint-placeholder-count="6">
+                <div style="padding:6px 0;border-bottom:1px dotted oklch(0.85 0.008 65)">
+                  <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);letter-spacing:.05em;margin-bottom:2px">{{ row.label }}</div>
+                  <div style="font:600 12.5px 'IBM Plex Mono',monospace;color:oklch(0.22 0.01 40);line-height:1.5">{{ row.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ c.hasNote }}"><div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:{{ c.noteColor }};margin-top:6px">{{ c.note }}</div></sc-if>
+        </div>
+      </sc-for>
+
+      <div style="border-top:1px solid oklch(0.78 0.01 60);margin:22px 0 18px"></div>
+
+      <div style="font:700 13px 'Source Serif 4',serif;margin-bottom:5px">通知設定</div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:12px">ネイティブ版ではUNUserNotificationCenter（OS標準の通知）で実装します。ここではトグルの見た目と、ブラウザ通知での代用テストのみ確認できます。</div>
+
+      <div onClick="{{ toggleNotifyNew }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
+        <div>
+          <div style="font:600 13px 'Source Serif 4',serif">新着項目の通知</div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:2px">配信元が更新され、新しい確認項目が追加された時</div>
+        </div>
+        <div style="width:22px;height:22px;flex:none;border:1.5px solid {{ notifyNewCheckBorder }};border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ notifyNewCheckColor }}">✓</div>
+      </div>
+
+      <div onClick="{{ toggleNotifyRemind }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
+        <div>
+          <div style="font:600 13px 'Source Serif 4',serif">定期リマインド</div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:2px">前回の点検から一定期間が経過した時</div>
+        </div>
+        <div style="width:22px;height:22px;flex:none;border:1.5px solid {{ notifyRemindCheckBorder }};border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ notifyRemindCheckColor }}">✓</div>
+      </div>
+
+      <div style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin:14px 0 8px">リマインド間隔</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <sc-for list="{{ remindDaysOptions }}" as="rd" hint-placeholder-count="3">
+          <div onClick="{{ rd.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ rd.borderColor }};border-radius:7px;background:{{ rd.bg }};font:600 12px 'IBM Plex Mono',monospace;cursor:pointer">{{ rd.label }}</div>
+        </sc-for>
+      </div>
+
+      <button onClick="{{ testNotify }}" style="width:100%;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:oklch(0.97 0.008 85);color:oklch(0.45 0.01 40);font:600 12px 'IBM Plex Mono',monospace;cursor:pointer;margin-bottom:22px">テスト通知を送る（ブラウザ通知で代用）</button>
+
+      <div style="border-top:1px solid oklch(0.78 0.01 60);margin:0 0 18px"></div>
+
+      <div style="font:700 13px 'Source Serif 4',serif;margin-bottom:5px">ウィジェットプレビュー</div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:14px">iOSのウィジェットはOS管理下のサーフェスのため、HTMLでは実際に動くものは作れません。WidgetKitで実装予定のデザイン案です。更新頻度はOS側の制約で数十分〜数時間おきになります。</div>
+
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;padding:4px 0 20px">
+        <div style="text-align:center">
+          <div style="width:135px;height:135px;border-radius:20px;padding:13px;background:oklch(0.22 0.01 40);display:flex;flex-direction:column;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:18px;height:18px;border-radius:5px;background:oklch(0.5 0.18 25);display:grid;place-items:center;font:700 9px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">保</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">個人情報保護確認</div>
+            </div>
+            <div>
+              <div style="font:700 28px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">{{ widgetCount }}</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">未対応</div>
+            </div>
+          </div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:8px">小サイズ</div>
+        </div>
+        <div style="text-align:center">
+          <div style="width:288px;height:135px;border-radius:20px;padding:13px;background:oklch(0.22 0.01 40);display:flex;flex-direction:column;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:18px;height:18px;border-radius:5px;background:oklch(0.5 0.18 25);display:grid;place-items:center;font:700 9px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">保</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">個人情報保護確認</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end">
+              <div>
+                <div style="font:700 28px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">{{ widgetCount }}</div>
+                <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">未対応の項目</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;font:600 10.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.1 150)">
+                <span style="width:7px;height:7px;border-radius:50%;background:oklch(0.5 0.1 150)"></span>VPN 接続中
+              </div>
+            </div>
+          </div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:8px">中サイズ（通信状況つき）</div>
+        </div>
+      </div>
+
+      <button onClick="{{ runDiagnostics }}" style="width:100%;margin-top:8px;padding:10px;border:none;background:none;color:oklch(0.5 0.01 40);font:400 11.5px 'Source Serif 4',serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer">再診断</button>
+      </sc-if>
+    </sc-if>
+
+  </div>
+
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const APP_DATA = {"version":"2026-07-29c","apps":[
+{"id":"line","name":"LINE","icon":"L","items":[
+  {"id":"line-talkroom-info","title":"トークルーム情報の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供 → トークルーム情報","severity":"high","why":"トークルーム内のURLやスタンプの利用状況が、サービス改善名目でLINEヤフーに送られる。既定はオン。","verifiedAt":"2026-07-29"},
+  {"id":"line-web-ads","title":"ウェブ追跡型広告の受信をオフ","path":"設定 → プライバシー管理 → 情報の提供 → ウェブ追跡型広告の受信","severity":"medium","why":"外部サイトの閲覧履歴をもとにLINE内の広告が最適化される。","verifiedAt":"2026-07-29"},
+  {"id":"line-ocr-photo","title":"文字認識用の写真の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供","severity":"high","why":"OCR精度向上のために、送受信した写真が提供対象になる。","verifiedAt":"2026-07-29"},
+  {"id":"line-delete-past","title":"過去に提供済みの情報を削除","path":"設定 → プライバシー管理 → 情報の提供 → 情報の削除","severity":"medium","why":"オフにしても過去分は残る。削除は別操作。","verifiedAt":"2026-07-29"},
+  {"id":"line-id-search","title":"IDによる友だち追加を許可をオフ","path":"設定 → プライバシー管理 → IDによる友だち追加を許可","severity":"medium","why":"IDを総当たりされて見知らぬ相手に追加されるのを防ぐ。","verifiedAt":"2026-07-29"},
+  {"id":"line-letter-sealing","title":"Letter Sealing がオンか確認","path":"設定 → プライバシー管理 → Letter Sealing","severity":"high","why":"メッセージの端末間暗号化。既定オンだが、相手側もオンでないと機能しない。","verifiedAt":"2026-07-29"},
+  {"id":"line-app-access","title":"アプリからの情報アクセスを見直し","path":"設定 → プライバシー管理 → アプリからの情報アクセス","severity":"medium","why":"連携アプリに渡すプロフィール情報の範囲を絞る。","verifiedAt":"2026-07-29"},
+  {"id":"line-yahoo-link","title":"Yahoo! JAPAN IDとの連携を確認","path":"設定 → account center","severity":"medium","why":"連携すると双方のサービス間でアカウント情報が結びつく。使う予定がなければ解除できる。","verifiedAt":"2026-07-29"}
+]},
+{"id":"google","name":"Google / Gemini","icon":"G","items":[
+  {"id":"google-gemini-activity","title":"Geminiアプリアクティビティをオフ","path":"Gemini → 設定 → アクティビティ → Geminiアプリアクティビティ","severity":"high","why":"既定オン。入力したテキスト・画像・音声・添付ファイルが保存され、モデル改善に使われる範囲に入る。オフにすると過去のチャット履歴が使えなくなる点は要覚悟。","verifiedAt":"2026-07-29"},
+  {"id":"google-auto-delete","title":"アクティビティの自動削除を3か月に","path":"マイアクティビティ → 自動削除オプションを選択 → 3か月","severity":"medium","why":"選択肢は3か月・18か月・36か月。既定はより長い期間。","verifiedAt":"2026-07-29"},
+  {"id":"google-waa","title":"ウェブとアプリのアクティビティを見直し","path":"Googleアカウント → データとプライバシー → ウェブとアプリのアクティビティ","severity":"medium","why":"検索・閲覧履歴の保存範囲。「Chromeの履歴」の同梱チェックも確認する。","verifiedAt":"2026-07-29"}
+]},
+{"id":"ios","name":"iOS 26","icon":"iOS","items":[
+  {"id":"ios-reduce-transparency","title":"透明度を下げるをオン","path":"設定 → アクセシビリティ → 画面表示とテキストサイズ → 透明度を下げる","severity":"low","why":"Liquid Glassのぼかし描画をGPUが毎フレーム計算しなくなる。","verifiedAt":"2026-07-29"},
+  {"id":"ios-reduce-motion","title":"視差効果を減らすをオン","path":"設定 → アクセシビリティ → 動作 → 視差効果を減らす","severity":"low","why":"透明度とセットで効く。アニメーションの描画負荷が下がる。","verifiedAt":"2026-07-29"},
+  {"id":"ios-tracking","title":"アプリからのトラッキング要求を許可をオフ","path":"設定 → プライバシーとセキュリティ → トラッキング","severity":"high","why":"各アプリが個別に許可を求めてくる仕組みごと止める。","verifiedAt":"2026-07-29"},
+  {"id":"ios-personalized-ads","title":"パーソナライズされた広告をオフ","path":"設定 → プライバシーとセキュリティ → Appleの広告","severity":"medium","why":"App StoreやApple News内の広告最適化にアカウント情報が使われる。","verifiedAt":"2026-07-29"},
+  {"id":"ios-analytics","title":"解析データの共有をオフ","path":"設定 → プライバシーとセキュリティ → 解析および改善","severity":"low","why":"利用状況データのAppleへの送信を止める。","verifiedAt":"2026-07-29"}
+]},
+{"id":"meta","name":"Instagram / Facebook","icon":"Meta","items":[
+  {"id":"meta-muse-image-optout","title":"AI画像合成の素材利用をオプトアウト","path":"プライバシーセンター → 生成AIモデルと機能 → 異議申し立て","severity":"high","why":"公開アカウントの写真は、拒否しない限り自動でMetaの画像生成AIの素材にされる。通知も来ない。","verifiedAt":"2026-07-29"},
+  {"id":"meta-ai-training-optout","title":"投稿・活動データのAI学習利用に異議申し立て","path":"設定 → プライバシーセンター → 異議申し立て","severity":"high","why":"公開設定の投稿は生成AIの学習対象になりうる。","verifiedAt":"2026-07-29"},
+  {"id":"meta-account-privacy","title":"公開範囲を「フォロワーのみ」に見直し","path":"設定 → プライバシー → アカウントのプライバシー","severity":"medium","why":"非公開アカウントにすると、AI学習対象からも外れやすくなる。","verifiedAt":"2026-07-29"}
+]},
+{"id":"x","name":"X (旧Twitter)","icon":"X","items":[
+  {"id":"x-grok-datasharing","title":"Grokへのデータ共有をオフ","path":"設定とプライバシー → プライバシーと安全 → データ共有とカスタマイズ → Grok","severity":"high","why":"投稿とGrokとのやり取りがxAIのモデル訓練に使われる。既定オン。ウェブ版のみ変更可。","watch":"リロード後に自動でオンへ戻る不具合が報告されている。定期的な再確認が必要。","verifiedAt":"2026-07-29"},
+  {"id":"x-personalized-ads","title":"興味関心に基づく広告をオフ","path":"設定とプライバシー → プライバシーと安全 → 広告の設定","severity":"medium","why":"行動履歴に基づく広告表示の停止。","verifiedAt":"2026-07-29"}
+]},
+{"id":"tiktok","name":"TikTok","icon":"TT","items":[
+  {"id":"tiktok-personalized-ads","title":"パーソナライズド広告をオフ","path":"プロフィール → 設定とプライバシー → 広告 → データを使用したパーソナライズ","severity":"medium","why":"アプリ内外の行動データが広告表示に使われる。","verifiedAt":"2026-07-29"},
+  {"id":"tiktok-off-activity","title":"TikTok外でのアクティビティを消去","path":"設定とプライバシー → 広告 → TikTok外でのアクティビティ","severity":"medium","why":"広告パートナーが共有した外部の行動データを削除できる。24時間ごとに再消去可能。","verifiedAt":"2026-07-29"},
+  {"id":"tiktok-private-account","title":"非公開アカウントを確認","path":"プロフィール → 設定とプライバシー → プライバシー","severity":"low","why":"公開設定だと投稿が誰でも見られ、リミックスやデュエットの対象にもなる。","verifiedAt":"2026-07-29"}
+]},
+{"id":"amazon","name":"Amazon / Alexa","icon":"AMZ","items":[
+  {"id":"amazon-alexa-voice-history","title":"音声履歴の自動削除を3か月に設定","path":"Alexaアプリ → その他 → Alexaプライバシー → Alexaデータを管理","severity":"medium","why":"既定は「削除するまで保存」。3か月・18か月・保存しないから選べる。","verifiedAt":"2026-07-29"},
+  {"id":"amazon-ads-personalization","title":"広告のカスタマイズをオフ","path":"Amazonアカウント → ログインとセキュリティ → 広告の設定","severity":"low","why":"購入・閲覧履歴に基づく広告最適化を止める。","verifiedAt":"2026-07-29"}
+]},
+{"id":"openai","name":"ChatGPT / OpenAI","icon":"GPT","items":[
+  {"id":"openai-improve-model-off","title":"「すべての人のためにモデルを改善する」をオフ","path":"設定 → データコントロール","severity":"high","why":"既定オン。会話データがモデル学習に使われる。オフにしてもオフ以前の会話は対象外にならない。","verifiedAt":"2026-07-29"},
+  {"id":"openai-temporary-chat","title":"機微な内容は一時チャットを使う","path":"新規チャット → 一時チャット","severity":"medium","why":"履歴に残らず、学習にも使われない。ただし共有リンクを作った内容は例外的に公開情報として扱われる。","verifiedAt":"2026-07-29"}
+]},
+{"id":"github","name":"GitHub","icon":"GH","items":[
+  {"id":"github-2fa","title":"2要素認証（TOTP）が有効か確認","path":"Settings → Password and authentication → Two-factor methods","severity":"high","why":"SMSより認証アプリ（TOTP）方式が推奨。復旧コードは印刷などオフラインで保管する。","verifiedAt":"2026-07-29"},
+  {"id":"github-oauth-apps","title":"認可済みOAuthアプリを棚卸し","path":"Settings → Applications → Authorized OAuth Apps","severity":"medium","why":"過去に許可した外部サービスがリポジトリへのアクセス権を持ったまま残っていることが多い。","verifiedAt":"2026-07-29"},
+  {"id":"github-security-log","title":"セキュリティログで身に覚えのないログインを確認","path":"Settings → Password and authentication → Security log","severity":"medium","why":"自分がしていない時間帯のログインがあれば侵害の兆候。","verifiedAt":"2026-07-29"}
+]},
+{"id":"discord","name":"Discord","icon":"DC","items":[
+  {"id":"discord-personalize-off","title":"データを使用したパーソナライズをオフ","path":"ユーザー設定 → データ&プライバシー → Discordの体験をパーソナライズ","severity":"medium","why":"アカウント固有の行動データがおすすめ表示に使われなくなる。","verifiedAt":"2026-07-29"},
+  {"id":"discord-dm-restrict","title":"サーバーメンバーからのDMを制限","path":"ユーザー設定 → プライバシーと安全","severity":"medium","why":"友だち以外の同一サーバー参加者から届く不要なDMやスパムを防ぐ。","verifiedAt":"2026-07-29"}
+]},
+{"id":"whatsapp","name":"WhatsApp","icon":"WA","items":[
+  {"id":"whatsapp-last-seen","title":"最終ログイン・プロフィール写真の公開範囲を絞る","path":"設定 → アカウント → プライバシー","severity":"medium","why":"「誰にでも」から「連絡先のみ」または「なし」に変更できる。","verifiedAt":"2026-07-29"},
+  {"id":"whatsapp-linked-devices","title":"リンク済みデバイスを確認","path":"設定 → リンク済みのデバイス","severity":"high","why":"見覚えのない端末が接続されていないか定期的に確認し、あればログアウトさせる。","verifiedAt":"2026-07-29"},
+  {"id":"whatsapp-backup-e2e","title":"バックアップのエンドツーエンド暗号化をオン","path":"設定 → チャット → チャットのバックアップ → エンドツーエンド暗号化バックアップ","severity":"medium","why":"既定オフ。オフのままだとクラウド上のバックアップは独自の暗号化を受けない。","verifiedAt":"2026-07-29"}
+]},
+{"id":"yahoo","name":"Yahoo! JAPAN","icon":"Y","items":[
+  {"id":"yahoo-line-link","title":"LINEとのID連携状況を確認","path":"アカウントセンター（LINEアプリ内、または id.yahoo.co.jp）","severity":"medium","why":"連携すると双方のサービスに情報が結びつく。使っていなければ「解除」をタップするだけで切れる。","verifiedAt":"2026-07-29"},
+  {"id":"yahoo-ads-personalization","title":"広告のパーソナライズをオフ","path":"プライバシーセンター → プライバシー設定 → 広告","severity":"low","why":"検索・閲覧履歴に基づく広告最適化を止める。","verifiedAt":"2026-07-29"}
+]},
+{"id":"paypay","name":"PayPay","icon":"PP","items":[
+  {"id":"paypay-external-link","title":"外部サービス連携を棚卸し","path":"アプリ → アカウント → 外部サービス連携","severity":"medium","why":"連携済みサービスとそこに提供されている情報の範囲を一覧で確認できる。","verifiedAt":"2026-07-29"},
+  {"id":"paypay-info-disclosure","title":"情報の開示・非開示設定を確認","path":"プライバシー設定方法ページ経由 → 各種開示設定","severity":"low","why":"自分の情報がどこまで公開・共有されているかを見直す。","verifiedAt":"2026-07-29"}
+]},
+{"id":"vpn","name":"VPN（Mullvad等）","icon":"VPN","items":[
+  {"id":"vpn-killswitch","title":"キルスイッチが有効か確認","path":"VPNアプリ → 設定 → VPN設定 → キルスイッチ / ローカルネットワーク共有","severity":"high","why":"VPN接続が切れた瞬間に生の通信が漏れるのを防ぐ。設定変更後は必ず再確認する。","verifiedAt":"2026-07-29"},
+  {"id":"vpn-dns-leak-test","title":"DNSリークテストを定期的に実施","path":"ブラウザで dnsleaktest.com などにアクセスして確認","severity":"medium","why":"表示されたDNSサーバーがVPN事業者のものでなければ、DNSクエリが漏れている可能性がある。","verifiedAt":"2026-07-29"}
+]}
+]};
+
+const METHODS = ['Google','Apple','GitHub','LINE','Yahoo! JAPAN','メールアドレス','その他'];
+const SEV_LABEL = {high:'要対応',medium:'推奨',low:'任意'};
+const LEVELS = [
+  {id:'basic', label:'基本 — 要対応のみ', desc:'最低限、見過ごせない項目だけ'},
+  {id:'standard', label:'標準 — 要対応+推奨', desc:'一般的に見直すべき項目まで'},
+  {id:'thorough', label:'徹底 — すべて確認', desc:'任意の項目も含めて棚卸し'},
+];
+const SEV_ALLOW = {basic:['high'], standard:['high','medium'], thorough:['high','medium','low']};
+const isPrivateIp = ip => /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^127\.|^169\.254\./.test(ip);
+// 配信元。同じ場所に置いた settings-data.json を起動時に取得し、version が異なれば差し替える。
+// 別ホストで配信する場合は絶対URLを書いてgit pushすればよい（空文字なら内蔵データのみ・自動更新なし）。
+const REMOTE_URL = './settings-data.json';
+
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    const ls = (k, fb) => { try{ const v = localStorage.getItem('pa_'+k); return v==null?fb:JSON.parse(v); }catch(e){ return fb; } };
+    const allIds = APP_DATA.apps.flatMap(a=>a.items.map(i=>i.id));
+    let seen = ls('seen', null);
+    if(!seen){ seen = allIds; }
+    this.state = {
+      picked: ls('picked', null),
+      tempSel: {},
+      level: ls('level', 'standard'),
+      tempLevel: ls('level', 'standard'),
+      done: ls('done', []),
+      seen,
+      accounts: ls('accounts', []),
+      view: 'check',
+      tab: 'todo',
+      activeSheet: null,
+      editingAccountId: null,
+      net: null,
+      data: ls('data', APP_DATA),
+      netStarted: false,
+      notifyNew: ls('notifyNew', true),
+      notifyRemind: ls('notifyRemind', true),
+      remindDays: ls('remindDays', 30),
+    };
+    this.serviceRef = React.createRef();
+    this.methodRef = React.createRef();
+    this.statusRef = React.createRef();
+    this.memoRef = React.createRef();
+  }
+
+  persist(){
+    const s = this.state;
+    try{
+      localStorage.setItem('pa_picked', JSON.stringify(s.picked));
+      localStorage.setItem('pa_done', JSON.stringify(s.done));
+      localStorage.setItem('pa_seen', JSON.stringify(s.seen));
+      localStorage.setItem('pa_accounts', JSON.stringify(s.accounts));
+      localStorage.setItem('pa_data', JSON.stringify(s.data));
+      localStorage.setItem('pa_level', JSON.stringify(s.level));
+      localStorage.setItem('pa_notifyNew', JSON.stringify(s.notifyNew));
+      localStorage.setItem('pa_notifyRemind', JSON.stringify(s.notifyRemind));
+      localStorage.setItem('pa_remindDays', JSON.stringify(s.remindDays));
+    }catch(e){}
+  }
+
+  toggleNotifyNew(){ this.setState(s=>({notifyNew:!s.notifyNew}), ()=>this.persist()); }
+  toggleNotifyRemind(){ this.setState(s=>({notifyRemind:!s.notifyRemind}), ()=>this.persist()); }
+  setRemindDays(n){ this.setState({remindDays:n}, ()=>this.persist()); }
+
+  async testNotify(){
+    if(!('Notification' in window)){ alert('このブラウザは通知に対応していません。'); return; }
+    let perm = Notification.permission;
+    if(perm === 'default'){ perm = await Notification.requestPermission(); }
+    if(perm === 'granted'){
+      new Notification('個人情報保護確認', { body: '新しい確認項目が2件追加されました（テスト通知）' });
+    } else {
+      alert('通知が許可されていません。ブラウザの通知設定を確認してください。\n\nこれはブラウザ通知での代用です。ネイティブ版ではUNUserNotificationCenterでOS標準の通知として届きます。');
+    }
+  }
+
+  toggleTemp(id){ this.setState(s=>({tempSel:{...s.tempSel,[id]:!s.tempSel[id]}})); }
+  toggleAllTemp(){
+    const allIds = this.state.data.apps.map(a=>a.id);
+    const allSelected = allIds.every(id=>this.state.tempSel[id]);
+    const tempSel = {};
+    if(!allSelected){ allIds.forEach(id=>tempSel[id]=true); }
+    this.setState({tempSel});
+  }
+  setTempLevel(l){ this.setState({tempLevel:l}); }
+  setLevel(l){ this.setState({level:l}, ()=>this.persist()); }
+  startCheck(){
+    const picked = Object.keys(this.state.tempSel).filter(k=>this.state.tempSel[k]);
+    this.setState({picked, level:this.state.tempLevel}, ()=>this.persist());
+  }
+  resetPicked(){
+    const tempSel = {};
+    (this.state.picked||[]).forEach(id=>tempSel[id]=true);
+    this.setState({picked:null, tempSel}, ()=>this.persist());
+  }
+  setView(v){
+    this.setState({view:v});
+  }
+  setTab(t){
+    this.setState({tab:t}, ()=>{
+      if(t==='new' && this.state.picked){
+        const allowedSev = SEV_ALLOW[this.state.level] || SEV_ALLOW.standard;
+        const ids = this.state.data.apps.filter(a=>this.state.picked.includes(a.id)).flatMap(a=>a.items).filter(i=>allowedSev.includes(i.severity)).map(i=>i.id);
+        const seen = Array.from(new Set([...this.state.seen, ...ids]));
+        if(seen.length !== this.state.seen.length){ this.setState({seen}, ()=>this.persist()); }
+      }
+    });
+  }
+  toggleDone(id){
+    this.setState(s=>{
+      const done = s.done.includes(id) ? s.done.filter(x=>x!==id) : [...s.done, id];
+      const seen = s.seen.includes(id) ? s.seen : [...s.seen, id];
+      return {done, seen};
+    }, ()=>this.persist());
+  }
+
+  openSettings(){ this.setState({activeSheet:'settings'}); }
+  openRaw(){ this.setState({activeSheet:'raw'}); }
+  closeSheet(){ this.setState({activeSheet:null, editingAccountId:null}); }
+  closeSheetBackdrop(e){ if(e.target===e.currentTarget) this.closeSheet(); }
+  stopProp(e){ e.stopPropagation(); }
+
+  componentDidMount(){
+    this.checkUpdate();
+  }
+
+  async checkUpdate(){
+    if(!REMOTE_URL) return;
+    try{
+      const res = await fetch(REMOTE_URL, {cache:'no-store'});
+      const fresh = await res.json();
+      if(!fresh || !Array.isArray(fresh.apps)) return;
+      if(fresh.version !== this.state.data.version){
+        this.setState({data:fresh}, ()=>this.persist());
+      }
+    }catch(e){ /* 取得できない場合は内蔵データのまま静かに継続 */ }
+  }
+
+  openNewAccount(){ this.setState({activeSheet:'accountForm', editingAccountId:null}); }
+  openEditAccount(id){ this.setState({activeSheet:'accountForm', editingAccountId:id}); }
+  deleteAccount(id){
+    if(!confirm('この記録を削除しますか？')) return;
+    this.setState(s=>({accounts:s.accounts.filter(a=>a.id!==id)}), ()=>this.persist());
+  }
+  saveAccount(){
+    const service = this.serviceRef.current.value.trim();
+    if(!service){ alert('サービス名を入力してください。'); return; }
+    const method = this.methodRef.current.value;
+    const status = this.statusRef.current.value;
+    const memo = this.memoRef.current.value.trim();
+    const editingId = this.state.editingAccountId;
+    this.setState(s=>{
+      let accounts;
+      if(editingId){
+        accounts = s.accounts.map(a=>a.id===editingId?{...a,service,method,status,memo}:a);
+      } else {
+        accounts = [{id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), service, method, status, memo}, ...s.accounts];
+      }
+      return {accounts, activeSheet:null, editingAccountId:null};
+    }, ()=>this.persist());
+  }
+
+  async runDiagnostics(){
+    this.setState({net:{ipv4:{loading:true},ipv6:{loading:true},dns:{loading:true},route:{loading:true},webrtc:{loading:true},tz:{loading:true},tracking:{loading:true},geoperm:{loading:true},attperm:{loading:true},vpnstatus:{loading:true}}});
+    this._checkIPv4(); this._checkIPv6(); this._checkDNS(); this._checkRoute(); this._checkWebRTC(); this._checkTimezone(); this._checkTracking();
+    this._checkGeoPerm(); this._checkAttPerm(); this._checkVpnStatus();
+  }
+  async _checkIPv4(){
+    try{
+      const r = await fetch('https://ipwho.is/', {cache:'no-store'});
+      const d = await r.json();
+      if(!d || d.success===false) throw new Error('lookup failed');
+      const conn = d.connection || {};
+      this.setState(s=>({net:{...s.net, ipv4:{
+        loading:false, text:d.ip, color:'oklch(0.22 0.01 40)',
+        rows:[
+          {label:'ISP', value: conn.isp || conn.org || '—'},
+          {label:'ホスト名', value:'—'},
+          {label:'国', value: d.country || '—'},
+          {label:'都道府県', value: d.region || '—'},
+          {label:'市区町村', value: d.city || '—'},
+          {label:'郵便番号', value: d.postal || '—'},
+        ],
+        note:'VPN接続中なら、接続先サーバーのISP・所在地が表示されるはず', noteColor:'oklch(0.5 0.01 40)',
+      }}}));
+    }catch(e){
+      try{
+        const r2 = await fetch('https://api.ipify.org?format=json',{cache:'no-store'});
+        const d2 = await r2.json();
+        this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:d2.ip, color:'oklch(0.22 0.01 40)', rows:[], note:'詳細情報（ISP・所在地）の取得には失敗しました', noteColor:'oklch(0.5 0.18 25)'}}}));
+      }catch(e2){
+        this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:'取得失敗', color:'oklch(0.5 0.18 25)', rows:[]}}}));
+      }
+    }
+  }
+  async _checkIPv6(){
+    try{
+      const r = await fetch('https://api6.ipify.org?format=json',{cache:'no-store'});
+      const d = await r.json();
+      let rows = [];
+      try{
+        const r2 = await fetch('https://ipwho.is/'+d.ip,{cache:'no-store'});
+        const d2 = await r2.json();
+        if(d2 && d2.success!==false){
+          const conn = d2.connection || {};
+          rows = [
+            {label:'ISP', value: conn.isp || conn.org || '—'},
+            {label:'国', value: d2.country || '—'},
+            {label:'都道府県', value: d2.region || '—'},
+            {label:'市区町村', value: d2.city || '—'},
+          ];
+        }
+      }catch(e2){}
+      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:d.ip, color:'oklch(0.5 0.18 25)', rows, note:'⚠ IPv6検出。VPNがIPv6非対応だと実IPが漏洩する可能性。', noteColor:'oklch(0.5 0.18 25)'}}}));
+    }catch(e){
+      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:'割り当てなし（安全）', color:'oklch(0.5 0.1 150)', rows:[]}}}));
+    }
+  }
+  async _checkDNS(){
+    try{
+      const r = await fetch('https://dnsleaktest.com/api/v1/nameservers',{cache:'no-store'});
+      const d = await r.json();
+      const servers = d.nameservers || [];
+      if(!servers.length){ this.setState(s=>({net:{...s.net, dns:{loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}})); return; }
+      const ispList = ['comcast','verizon','at&t','charter','cox'];
+      const rows = servers.map(sv=>{
+        const label = sv.name || sv.ip || '?';
+        const isIsp = ispList.some(isp=>label.toLowerCase().includes(isp));
+        return {label, value: isIsp ? '⚠ ISP DNSの可能性' : 'プライベート/VPN DNS'};
+      });
+      const hasIsp = servers.some(sv=>ispList.some(isp=>(sv.name||sv.ip||'').toLowerCase().includes(isp)));
+      this.setState(s=>({net:{...s.net, dns:{loading:false, text: servers.length+'件のリゾルバを検出', color: hasIsp?'oklch(0.5 0.18 25)':'oklch(0.5 0.1 150)', rows, note: hasIsp?'⚠ ISP DNSが混在しています':'ISP DNSは検出されませんでした', noteColor: hasIsp?'oklch(0.5 0.18 25)':'oklch(0.5 0.1 150)'}}}));
+    }catch(e){
+      this.setState(s=>({net:{...s.net, dns:{loading:false, text:'DNS情報取得不可（CORS制限の場合あり）', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    }
+  }
+  async _checkRoute(){
+    try{
+      const r = await fetch('https://www.cloudflare.com/cdn-cgi/trace',{cache:'no-store'});
+      const text = await r.text();
+      const obj = {};
+      text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
+      const rows = [
+        {label:'出口IP', value: obj.ip || '—'},
+        {label:'エッジ拠点 (colo)', value: obj.colo || '—'},
+        {label:'WARP', value: obj.warp==='on' ? '有効' : '無効'},
+        {label:'TLSバージョン', value: obj.tls || '—'},
+      ];
+      this.setState(s=>({net:{...s.net, route:{loading:false, text:'colo: '+(obj.colo||'—'), color:'oklch(0.22 0.01 40)', rows, note:'ブラウザから実際のtraceroute（経由ルーター一覧）は取得できません。到達しているネットワーク結節点を代替指標として表示しています。', noteColor:'oklch(0.5 0.01 40)'}}}));
+    }catch(e){
+      this.setState(s=>({net:{...s.net, route:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    }
+  }
+  async _checkWebRTC(){
+    try{
+      const ips = new Set();
+      const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+      pc.createDataChannel('leak-test');
+      pc.onicecandidate = e => {
+        if(e.candidate && e.candidate.candidate){
+          const m = e.candidate.candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+          if(m && m[1] !== '0.0.0.0') ips.add(m[1]);
+        }
+      };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await new Promise(res=>setTimeout(res,1500));
+      pc.close();
+      const list = Array.from(ips);
+      const vpnIp = (this.state.net && this.state.net.ipv4 && this.state.net.ipv4.text) || null;
+      const leaked = list.filter(ip => ip!==vpnIp && !isPrivateIp(ip));
+      this.setState(s=>({net:{...s.net, webrtc:{
+        loading:false,
+        text: list.length ? list.join(' / ') : '候補IPは検出されませんでした',
+        color: leaked.length ? 'oklch(0.5 0.18 25)' : 'oklch(0.5 0.1 150)',
+        note: leaked.length ? '⚠ 表示中のIPv4と異なる公開IPがWebRTC経由で検出されました。VPN使用時は特に注意。' : (list.length ? 'ローカル/プライベートアドレスのみ、または表示中のIPと一致（安全）' : 'このブラウザ・接続ではWebRTC候補が生成されませんでした'),
+        noteColor: leaked.length ? 'oklch(0.5 0.18 25)' : 'oklch(0.5 0.1 150)',
+        rows:[],
+      }}}));
+    }catch(e){
+      this.setState(s=>({net:{...s.net, webrtc:{loading:false, text:'このブラウザでは検査できません', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    }
+  }
+  _checkTimezone(){
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '—';
+    const offsetMin = -new Date().getTimezoneOffset();
+    const sign = offsetMin>=0 ? '+' : '-';
+    const offset = 'UTC'+sign+String(Math.floor(Math.abs(offsetMin)/60)).padStart(2,'0')+':'+String(Math.abs(offsetMin)%60).padStart(2,'0');
+    this.setState(s=>({net:{...s.net, tz:{loading:false, text:tz+'（'+offset+'）', color:'oklch(0.22 0.01 40)', rows:[], note:'上記IPv4診断の「国」と大きく異なる場合、VPN以外の経路でタイムゾーン情報が漏れている可能性があります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+  }
+  _checkTracking(){
+    const dnt = (navigator.doNotTrack==='1' || window.doNotTrack==='1' || navigator.doNotTrack==='yes') ? '有効' : (navigator.doNotTrack==='0' ? '無効' : '未設定');
+    const gpc = typeof navigator.globalPrivacyControl !== 'undefined' ? (navigator.globalPrivacyControl ? '有効' : '無効') : '未対応';
+    this.setState(s=>({net:{...s.net, tracking:{loading:false, text:'', color:'oklch(0.22 0.01 40)', rows:[
+      {label:'Do Not Track', value:dnt},
+      {label:'Global Privacy Control', value:gpc},
+    ]}}}));
+  }
+  _checkGeoPerm(){
+    if(!navigator.permissions){
+      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'このブラウザは非対応', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      return;
+    }
+    navigator.permissions.query({name:'geolocation'}).then(p=>{
+      const map = {granted:['許可済み','oklch(0.5 0.1 150)'], denied:['拒否','oklch(0.5 0.18 25)'], prompt:['未確認（初回に確認）','oklch(0.5 0.01 40)']};
+      const hit = map[p.state] || ['不明','oklch(0.5 0.01 40)'];
+      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:hit[0], color:hit[1], rows:[],
+        note:'ネイティブ版ではCoreLocationの認可レベル（使用中のみ／常に許可／なし）にそのまま置き換わります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+    }).catch(()=>{
+      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    });
+  }
+  _checkAttPerm(){
+    this.setState(s=>({net:{...s.net, attperm:{
+      loading:false, text:'ネイティブ版で実装予定', color:'oklch(0.5 0.01 40)', rows:[],
+      note:'ATTrackingManagerで実際の許可状態（許可／拒否／未確認）を取得します。ブラウザには相当するAPIがないため、ここではプレースホルダーです。', noteColor:'oklch(0.5 0.01 40)',
+    }}}));
+  }
+  async _checkVpnStatus(){
+    try{
+      const r = await fetch('https://www.cloudflare.com/cdn-cgi/trace',{cache:'no-store'});
+      const text = await r.text();
+      const obj = {};
+      text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
+      const warp = obj.warp==='on' || obj.warp==='plus';
+      this.setState(s=>({net:{...s.net, vpnstatus:{
+        loading:false,
+        text: warp ? 'VPN経由の可能性あり（推定）' : '検出できず（断定はできません）',
+        color: warp ? 'oklch(0.5 0.1 150)' : 'oklch(0.5 0.01 40)', rows:[],
+        note:'ブラウザからVPNの有無を確実に判定する手段はありません。ネイティブ版ではNWPathMonitorで「接続中/未接続」を確実に判定します（どのVPNアプリかまでは分かりません）。', noteColor:'oklch(0.5 0.01 40)',
+      }}}));
+    }catch(e){
+      this.setState(s=>({net:{...s.net, vpnstatus:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    }
+  }
+
+  renderVals(){
+    const s = this.state;
+    const DATA = s.data;
+    const isOnboarding = !s.picked;
+    const showMain = !isOnboarding;
+
+    const onboardingApps = DATA.apps.map(a=>({
+      id:a.id, name:a.name, count:a.items.length,
+      checkColor: s.tempSel[a.id] ? 'oklch(0.5 0.18 25)' : 'transparent',
+      checkBg: s.tempSel[a.id] ? 'oklch(0.95 0.05 25)' : 'transparent',
+      toggle: () => this.toggleTemp(a.id),
+    }));
+    const onboardingDisabled = !Object.values(s.tempSel).some(Boolean);
+
+    let appGroups = [], nHigh=0, nMed=0, nLow=0, nDone=0, totalItems=0, nNew=0;
+    let netChecksOut = [], accountCards = [];
+
+    if(showMain){
+      const allowedSev = SEV_ALLOW[s.level] || SEV_ALLOW.standard;
+      const apps = DATA.apps.filter(a=>s.picked.includes(a.id));
+      const items = apps.flatMap(a=>a.items).filter(i=>allowedSev.includes(i.severity));
+      totalItems = items.length;
+      const remaining = items.filter(i=>!s.done.includes(i.id));
+      nHigh = remaining.filter(i=>i.severity==='high').length;
+      nMed = remaining.filter(i=>i.severity==='medium').length;
+      nLow = remaining.filter(i=>i.severity==='low').length;
+      nDone = totalItems - remaining.length;
+      nNew = items.filter(i=>!s.seen.includes(i.id)).length;
+
+      const filt = it => s.tab==='all' ? true : s.tab==='todo' ? !s.done.includes(it.id) : !s.seen.includes(it.id);
+
+      appGroups = apps.map(a=>{
+        const list = a.items.filter(i=>allowedSev.includes(i.severity)).filter(filt);
+        return {
+          id:a.id, name:a.name, allDone: a.items.every(i=>s.done.includes(i.id)),
+          items: list.map((item,idx)=>{
+            const isDone = s.done.includes(item.id);
+            return {
+              id:item.id,
+              fileNo: 'No.' + String(idx+1).padStart(2,'0'),
+              title:item.title, path:item.path, why:item.why,
+              isHigh:item.severity==='high', isMedium:item.severity==='medium', isLow:item.severity==='low',
+              stampRotate: 'rotate(-4deg)',
+              hasWatch: !!item.watch, watch:item.watch||'',
+              isNewItem: !s.seen.includes(item.id),
+              verifiedAt: item.verifiedAt||'—',
+              opacity: isDone ? '0.55' : '1',
+              strike: isDone ? 'line-through' : 'none',
+              checkBorder: isDone ? 'oklch(0.5 0.1 150)' : 'oklch(0.3 0.01 40)',
+              checkColor: isDone ? 'oklch(0.5 0.1 150)' : 'transparent',
+              toggle: () => this.toggleDone(item.id),
+            };
+          }),
+        };
+      }).filter(g=>g.items.length>0);
+
+      if(s.tab==='new'){ /* mark seen lazily handled on view */ }
+
+      accountCards = s.accounts.map(a=>({
+        id:a.id, service:a.service, method:a.method,
+        statusLabel: a.status==='unlinked' ? '解除済み' : '連携中',
+        statusColor: a.status==='unlinked' ? 'oklch(0.5 0.1 150)' : 'oklch(0.55 0.13 75)',
+        statusRotate: 'rotate(-2deg)',
+        hasMemo: !!a.memo, memo:a.memo||'',
+        edit: () => this.openEditAccount(a.id),
+        del: () => this.deleteAccount(a.id),
+      }));
+
+      const netDefs = [
+        {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'グローバルIPアドレスと、それに紐づくISP・おおよその所在地。VPN接続下では接続先のものが表示されるはずです。'},
+        {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6が割り当てられている場合の詳細。VPNがIPv6を未対応だと実IPが漏洩するリスク。'},
+        {id:'dns', title:'DNSサーバー', desc:'DNS解決に使われているサーバー一覧。VPN経由ならVPN事業者のDNSが表示されるはず。'},
+        {id:'route', title:'出口ノード（経路の目安）', desc:'ブラウザからは本来のtracerouteは実行できません。到達しているネットワーク結節点を代替指標として表示します。'},
+        {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCのSTUN通信は、VPN使用中でも実IPを漏洩させることがある既知の抜け穴です。'},
+        {id:'tz', title:'タイムゾーン整合性', desc:'ブラウザが認識している時刻帯。IPの「国」と大きく異なる場合は要注意。'},
+        {id:'tracking', title:'トラッキング防止シグナル', desc:'ブラウザが送信しているDo Not Track / Global Privacy Controlの状態。'},
+        {id:'geoperm', title:'位置情報の許可', desc:'ブラウザの位置情報アクセス許可状態。'},
+        {id:'attperm', title:'トラッキング許可（App Tracking Transparency）', desc:'アプリ間トラッキングの許可状態。'},
+        {id:'vpnstatus', title:'VPN接続状態', desc:'現在VPN経由の通信になっているかどうかの推定。'},
+      ];
+      netChecksOut = netDefs.map(d=>{
+        const r = (s.net && s.net[d.id]) || {};
+        return {
+          id:d.id, title:d.title, desc:d.desc,
+          loading: !!r.loading,
+          hasResultText: !r.loading && !!r.text,
+          resultText: r.text||'', resultColor: r.color||'oklch(0.22 0.01 40)',
+          hasNote: !!r.note, note:r.note||'', noteColor: r.noteColor||'oklch(0.5 0.01 40)',
+          hasRows: !!(r.rows && r.rows.length), rows: r.rows||[],
+        };
+      });
+    }
+
+    const widgetCount = nHigh + nMed + nLow;
+    const notifyProps = {
+      notifyNewOn: s.notifyNew,
+      notifyNewCheckColor: s.notifyNew ? 'oklch(0.5 0.1 150)' : 'transparent',
+      notifyNewCheckBorder: s.notifyNew ? 'oklch(0.5 0.1 150)' : 'oklch(0.4 0.01 40)',
+      toggleNotifyNew: ()=>this.toggleNotifyNew(),
+      notifyRemindOn: s.notifyRemind,
+      notifyRemindCheckColor: s.notifyRemind ? 'oklch(0.5 0.1 150)' : 'transparent',
+      notifyRemindCheckBorder: s.notifyRemind ? 'oklch(0.5 0.1 150)' : 'oklch(0.4 0.01 40)',
+      toggleNotifyRemind: ()=>this.toggleNotifyRemind(),
+      remindDaysOptions: [7,14,30].map(n=>({
+        n, label:n+'日ごと', selected: s.remindDays===n,
+        borderColor: s.remindDays===n ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
+        bg: s.remindDays===n ? 'oklch(0.95 0.05 25)' : 'oklch(0.99 0.005 85)',
+        click: ()=>this.setRemindDays(n),
+      })),
+      testNotify: ()=>this.testNotify(),
+      widgetCount,
+    };
+
+    const navTabs = [
+      {key:'check', label:'設定状況確認'},
+      {key:'accounts', label:'連携アカウント台帳'},
+      {key:'network', label:'ネットワーク診断'},
+    ].map(t=>{
+      const active = s.view===t.key;
+      return {
+        label:t.label, click: ()=>this.setView(t.key),
+        bg: active ? 'oklch(0.99 0.005 85)' : 'oklch(0.9 0.008 80)',
+        color: active ? 'oklch(0.22 0.01 40)' : 'oklch(0.5 0.01 40)',
+        weight: active ? '600' : '400',
+        borderBottom: active ? 'none' : '1px solid oklch(0.78 0.01 60)',
+        top: active ? '1px' : '0',
+        marginLeft: t.key==='check' ? '0' : '-1px',
+      };
+    });
+
+    const subTabs = [
+      {key:'todo', label:'未対応', count: showMain ? (totalItems-nDone) : 0},
+      {key:'new', label:'新着', count: nNew},
+      {key:'all', label:'すべて', count: totalItems},
+    ].map(t=>({
+      label:t.label, count:t.count, click: ()=>this.setTab(t.key),
+      bg: s.tab===t.key ? 'oklch(0.22 0.01 40)' : 'oklch(0.93 0.008 80)',
+      color: s.tab===t.key ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
+      weight: s.tab===t.key ? '700' : '400',
+    }));
+
+    const editingAccount = s.editingAccountId ? s.accounts.find(a=>a.id===s.editingAccountId) : null;
+
+    return {
+      hasSheet: !!s.activeSheet,
+      sheetKey: (s.activeSheet||'none')+':'+(s.editingAccountId||'new'),
+      isSettingsSheet: s.activeSheet==='settings',
+      isRawSheet: s.activeSheet==='raw',
+      isAccountFormSheet: s.activeSheet==='accountForm',
+      closeSheetBackdrop: (e)=>this.closeSheetBackdrop(e),
+      closeSheet: ()=>this.closeSheet(),
+      openSettings: ()=>this.openSettings(),
+      openRaw: ()=>this.openRaw(),
+      dataVersion: DATA.version,
+      rawDataText: JSON.stringify(DATA, null, 2),
+
+      accountFormTitle: editingAccount ? '連携を編集' : '連携を記録',
+      serviceRef:this.serviceRef, methodRef:this.methodRef, statusRef:this.statusRef, memoRef:this.memoRef,
+      formServiceDefault: editingAccount ? editingAccount.service : '',
+      formMethodDefault: editingAccount ? editingAccount.method : METHODS[0],
+      formStatusDefault: editingAccount ? editingAccount.status : 'active',
+      formMemoDefault: editingAccount ? (editingAccount.memo||'') : '',
+      methodOptions: METHODS,
+      saveAccount: ()=>this.saveAccount(),
+
+      isOnboarding, showMain,
+      onboardingApps, onboardingDisabled,
+      allTempSelectedLabel: DATA.apps.every(a=>s.tempSel[a.id]) ? '選択解除' : 'すべて選択',
+      toggleAllTemp: ()=>this.toggleAllTemp(),
+      onboardingBtnBg: onboardingDisabled ? 'oklch(0.9 0.008 80)' : 'oklch(0.22 0.01 40)',
+      onboardingBtnColor: onboardingDisabled ? 'oklch(0.55 0.01 40)' : 'oklch(0.97 0.008 85)',
+      startCheck: ()=>this.startCheck(),
+
+      navTabs,
+      viewTitle: s.view==='check' ? '設定状況確認' : s.view==='accounts' ? '連携アカウント台帳' : 'ネットワーク診断',
+      levelOptions: LEVELS.map(lv=>({
+        label: lv.label, desc: lv.desc, selected: s.tempLevel===lv.id, click: ()=>this.setTempLevel(lv.id),
+        borderColor: s.tempLevel===lv.id ? 'oklch(0.5 0.18 25)' : 'oklch(0.78 0.01 60)',
+        bg: s.tempLevel===lv.id ? 'oklch(0.97 0.03 25)' : 'oklch(0.99 0.005 85)',
+        dotBorder: s.tempLevel===lv.id ? 'oklch(0.5 0.18 25)' : 'oklch(0.6 0.01 40)',
+      })),
+      settingsLevelOptions: LEVELS.map(lv=>({
+        label: lv.label.split(' — ')[0], click: ()=>this.setLevel(lv.id),
+        borderColor: s.level===lv.id ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
+        bg: s.level===lv.id ? 'oklch(0.22 0.01 40)' : 'none',
+        color: s.level===lv.id ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
+      })),
+      isCheckView: showMain && s.view==='check',
+      isAccountsView: showMain && s.view==='accounts',
+      isNetworkView: showMain && s.view==='network',
+      isNetworkStarted: showMain && s.view==='network' && s.netStarted,
+      isNetworkNotStarted: showMain && s.view==='network' && !s.netStarted,
+      startDiagnostics: ()=>{ this.setState({netStarted:true}); this.runDiagnostics(); },
+
+      nHigh, nMed, nLow, doneFrac: nDone+'/'+totalItems,
+      subTabs, appGroups,
+      checkIsEmpty: showMain && appGroups.length===0,
+      checkEmptyMessage: s.tab==='todo' ? '未対応の項目はありません。' : s.tab==='new' ? '新着はありません。' : '対象がありません。',
+      resetPicked: ()=>this.resetPicked(),
+
+      accountCards, accountsEmpty: showMain && accountCards.length===0,
+      openNewAccount: ()=>this.openNewAccount(),
+
+      netChecks: netChecksOut,
+      runDiagnostics: ()=>this.runDiagnostics(),
+      ...notifyProps,
+    };
+  }
+}
+</script>
+</body>
+</html>
