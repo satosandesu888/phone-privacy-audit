@@ -65,7 +65,9 @@ WebRTC検査がOSの「ローカルネットワークへのアクセス」許可
 
 ## ホスティング
 
-静的ファイルを置くだけで動く。GitHub Pages なら、リポジトリの Settings → Pages で対象ブランチと `/ (root)` を指定すれば公開される（`.nojekyll` を同梱済み）。
+静的ファイルを置くだけで動く。`main` への push で `.github/workflows/pages.yml` が走り、GitHub Pages へ配信される（`settings-data.json` の妥当性を検査してからデプロイする）。Pages が未設定の場合は `actions/configure-pages` の `enablement: true` が有効化する。
+
+他のホスティングに置く場合も、`index.html` / `support.js` / `settings-data.json` を同じディレクトリに並べるだけでよい（`.nojekyll` 同梱）。
 
 `file://` で直接開くと `settings-data.json` の取得がブラウザにブロックされるが、その場合は内蔵データのまま静かに動作する。動作確認はHTTP経由で行うこと。
 
