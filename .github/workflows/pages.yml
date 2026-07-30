@@ -26,6 +26,8 @@ jobs:
           import json
           d = json.load(open('settings-data.json', encoding='utf-8'))
           assert isinstance(d.get('version'), str) and d['version'], 'version が空です'
+          mv = d.get('minVersions') or {}
+          assert mv.get('ios') and mv.get('safari'), 'minVersions.ios / minVersions.safari が未設定です'
           ids = [i['id'] for a in d['apps'] for i in a['items']]
           assert len(ids) == len(set(ids)), '項目IDが重複しています'
           for a in d['apps']:

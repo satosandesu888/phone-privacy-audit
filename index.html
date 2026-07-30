@@ -346,7 +346,7 @@ input,select,textarea{font-family:inherit}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const APP_DATA = {"version":"2026-07-30a","apps":[
+const APP_DATA = {"version":"2026-07-30b","minVersions":{"ios":"26.0","safari":"26.0"},"apps":[
 {"id":"line","name":"LINE","icon":"L","category":"app","items":[
   {"id":"line-talkroom-info","title":"トークルーム情報の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供 → トークルーム情報","severity":"high","why":"トークルーム内のURLやスタンプの利用状況が、サービス改善名目でLINEヤフーに送られる。既定はオン。","verifiedAt":"2026-07-29"},
   {"id":"line-web-ads","title":"ウェブ追跡型広告の受信をオフ","path":"設定 → プライバシー管理 → 情報の提供 → ウェブ追跡型広告の受信","severity":"medium","why":"外部サイトの閲覧履歴をもとにLINE内の広告が最適化される。","verifiedAt":"2026-07-29"},
@@ -464,6 +464,37 @@ const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\
 // エッジキャッシュには効かないことがある。
 // URLが毎回同じエンドポイントにだけ使う。パスにIPが入るもの（ipwho.is/<ip>）は
 // URL自体が変わるので不要。未知のクエリを受け付けないAPIに付けると失敗する。
+// 遮断の実測に使う既知のトラッカー。設定値ではなく実際の通信結果を見る。
+const TRACKERS = [
+  {name:'Google Analytics', url:'https://www.google-analytics.com/analytics.js'},
+  {name:'Google 広告配信 (GPT)', url:'https://securepubads.g.doubleclick.net/tag/js/gpt.js'},
+  {name:'Meta Pixel', url:'https://connect.facebook.net/en_US/fbevents.js'},
+  {name:'Criteo', url:'https://static.criteo.net/js/ld/ld.js'},
+  {name:'Taboola', url:'https://cdn.taboola.com/libtrc/unip/tfa.js'},
+];
+// 指紋の材料としてフォントの有無を見る。iOSは構成が均一なので、多く出るほど
+// 追加された書体で識別されやすいということ。
+const FONT_PROBE = ['Helvetica Neue','Hiragino Sans','Hiragino Mincho ProN','YuGothic','Osaka','Arial','Times New Roman','Courier New','Georgia','Verdana','Trebuchet MS','Palatino','Impact','Menlo','Monaco','Optima','Futura','Baskerville','Didot','American Typewriter','Chalkboard SE','Papyrus','Zapfino'];
+// 配信データに minVersions が無い場合のフォールバック。
+const MIN_VERSIONS_FALLBACK = {ios:'26.0', safari:'26.0'};
+// 32bit FNV-1a。指紋の安定性を見せるためだけに使う。端末外には出さない。
+const hash32 = str => { let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0).toString(16).padStart(8,'0'); };
+// 遮断されたのか単に遅いのかを分ける。即座に reject なら遮断、時間切れは不明。
+const raceTimeout = (promise, ms) => {
+  let t;
+  return Promise.race([
+    promise.then(v=>{ clearTimeout(t); return {ok:true, v}; }, e=>{ clearTimeout(t); return {ok:false, e}; }),
+    new Promise(res=>{ t=setTimeout(()=>res({timeout:true}), ms); }),
+  ]);
+};
+const cmpVersion = (a,b) => {
+  const pa=String(a).split('.').map(Number), pb=String(b).split('.').map(Number);
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){
+    const x=pa[i]||0, y=pb[i]||0;
+    if(x!==y) return x<y ? -1 : 1;
+  }
+  return 0;
+};
 const bust = url => url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
 // 同一 /24 かどうか。VPN事業者のDNSは出口と同じネットワークに置かれることが多く、
 // 一般ISPではまず起きない。地域名の文字列比較より確実な手がかりになる。
@@ -530,6 +561,7 @@ class Component extends DCLogic {
       localStorage.setItem('pa_notifyNew', JSON.stringify(s.notifyNew));
       localStorage.setItem('pa_notifyRemind', JSON.stringify(s.notifyRemind));
       localStorage.setItem('pa_remindDays', JSON.stringify(s.remindDays));
+      // pa_history は診断のたびに _compareSnapshot が直接書くので、ここでは触らない。
     }catch(e){}
   }
 
@@ -637,15 +669,271 @@ class Component extends DCLogic {
     }, ()=>this.persist());
   }
 
+  // 1項目の想定外の例外で診断全体を止めないための包み。同期的に throw する
+  // 検査（指紋・保存量）が1つ落ちるだけで、以降の検査が走らず他のカードが
+  // 「確認中...」のまま固まる事故を防ぐ。
+  _safe(id, fn){
+    try{
+      return Promise.resolve(fn()).catch(()=>{ this._checkFailed(id); return null; });
+    }catch(e){
+      this._checkFailed(id);
+      return Promise.resolve(null);
+    }
+  }
+  _checkFailed(id){
+    this.setState(s=>({net:{...s.net, [id]:{
+      loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
+      note:'この項目の確認中に想定外のエラーが発生しました。他の項目の結果には影響していません。', noteColor:'oklch(0.5 0.01 40)',
+    }}}));
+  }
+
   async runDiagnostics(){
-    this.setState({net:{ipv4:{loading:true},ipv6:{loading:true},dns:{loading:true},route:{loading:true},webrtc:{loading:true},tz:{loading:true},tracking:{loading:true},geoperm:{loading:true},attperm:{loading:true},vpnstatus:{loading:true}}});
+    const ids = ['ipv4','ipv6','dns','route','webrtc','vpnstatus','tz','tracking','blocker','fingerprint','platform','geoperm','attperm','storage','history'];
+    const loading = {};
+    ids.forEach(k=>loading[k]={loading:true});
+    this.setState({net:loading});
     // WebRTC比較とVPN推定はIPv4の結果に依存する。待たずに判定すると誤報になるため、
     // Promiseを渡して各自で待たせる。
-    const ipInfo = this._checkIPv4();
-    const dnsInfo = this._checkDNS(ipInfo);
-    this._checkIPv6(); this._checkRoute(); this._checkTimezone(); this._checkTracking();
-    this._checkGeoPerm(); this._checkAttPerm();
-    this._checkWebRTC(ipInfo); this._checkVpnStatus(ipInfo, dnsInfo);
+    const ipInfo = this._safe('ipv4', ()=>this._checkIPv4());
+    const dnsInfo = this._safe('dns', ()=>this._checkDNS(ipInfo));
+    const jobs = [
+      ipInfo, dnsInfo,
+      this._safe('ipv6', ()=>this._checkIPv6()),
+      this._safe('route', ()=>this._checkRoute()),
+      this._safe('webrtc', ()=>this._checkWebRTC(ipInfo)),
+      this._safe('vpnstatus', ()=>this._checkVpnStatus(ipInfo, dnsInfo)),
+      this._safe('blocker', ()=>this._checkBlocker()),
+      this._safe('storage', ()=>this._checkStorage()),
+      this._safe('tz', ()=>this._checkTimezone()),
+      this._safe('tracking', ()=>this._checkTracking()),
+      this._safe('geoperm', ()=>this._checkGeoPerm()),
+      this._safe('attperm', ()=>this._checkAttPerm()),
+      this._safe('fingerprint', ()=>this._checkFingerprint()),
+      this._safe('platform', ()=>this._checkPlatform()),
+    ];
+    // 全項目が確定してから前回との比較を出す。途中の値で比べると嘘になる。
+    await Promise.all(jobs);
+    this._safe('history', ()=>this._compareSnapshot());
+  }
+
+  // ---- トラッカー遮断の実測 ----
+  async _checkBlocker(){
+    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
+    const results = await Promise.all(TRACKERS.map(async t=>{
+      const r = await raceTimeout(fetch(t.url, {mode:'no-cors', cache:'no-store'}), 7000);
+      if(r.timeout) return {...t, state:'unknown'};
+      return {...t, state: r.ok ? 'allowed' : 'blocked'};
+    }));
+    const blocked = results.filter(r=>r.state==='blocked').length;
+    const allowed = results.filter(r=>r.state==='allowed').length;
+    const unknown = results.filter(r=>r.state==='unknown').length;
+    const label = {blocked:'遮断された', allowed:'通過した', unknown:'判定不能（時間切れ）'};
+    this.setState(s=>({net:{...s.net, blocker:{
+      loading:false,
+      text: blocked+' / '+TRACKERS.length+' 件を遮断',
+      color: allowed===0 && unknown===0 ? green : (allowed>0 ? amber : grey),
+      rows: results.map(r=>({label:r.name, value:label[r.state]})),
+      note: (allowed===0 && unknown===0
+        ? '試したトラッカーはすべて遮断されました。コンテンツブロッカーまたはプライベートリレーが実際に機能しています。'
+        : allowed>0
+          ? '⚠ '+allowed+'件のトラッカーが通過しました。コンテンツブロッカーが未導入か、このドメインで無効になっている可能性があります。'
+          : '時間切ればかりで判定できませんでした。回線が不安定なときに起きます。')
+        + ' これは設定値の読み取りではなく、実際にリクエストを投げた結果です。ただし遮断できてもフィンガープリントによる識別は止まりません（下の項目を参照）。',
+      noteColor: allowed>0 ? amber : (unknown ? grey : green),
+    }}}));
+  }
+
+  // ---- ブラウザ指紋の識別性 ----
+  _checkFingerprint(){
+    const sig = {};
+    try{
+      const cv = document.createElement('canvas'); cv.width=220; cv.height=60;
+      const ctx = cv.getContext('2d');
+      ctx.textBaseline='top'; ctx.font="14px 'Arial'";
+      ctx.fillStyle='#f60'; ctx.fillRect(0,0,110,22);
+      ctx.fillStyle='#069'; ctx.fillText('privacy-audit-\u2713\u3042', 2, 18);
+      ctx.strokeStyle='rgba(0,80,160,.7)'; ctx.arc(60,40,18,0,Math.PI*2); ctx.stroke();
+      sig.canvas = hash32(cv.toDataURL());
+    }catch(e){ sig.canvas = null; }
+    try{
+      const gl = document.createElement('canvas').getContext('webgl');
+      const dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      sig.gpu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : (gl ? gl.getParameter(gl.RENDERER) : null);
+    }catch(e){ sig.gpu = null; }
+    let fonts = [];
+    try{
+      const span = document.createElement('span');
+      span.style.cssText = 'position:absolute;left:-9999px;top:-9999px;font-size:72px;white-space:nowrap';
+      span.textContent = 'mmmmmmmmmmlli';
+      document.body.appendChild(span);
+      span.style.fontFamily = 'monospace';
+      const baseW = span.offsetWidth;
+      FONT_PROBE.forEach(f=>{ span.style.fontFamily = "'"+f+"',monospace"; if(span.offsetWidth!==baseW) fonts.push(f); });
+      span.parentNode.removeChild(span);
+    }catch(e){}
+    sig.fonts = fonts.length;
+    try{ sig.screen = (screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1)); }catch(e){ sig.screen = null; }
+    sig.cores = navigator.hardwareConcurrency || null;
+    sig.memory = navigator.deviceMemory || null;
+    sig.touch = navigator.maxTouchPoints;
+    sig.langs = (navigator.languages || [navigator.language]).join(',');
+    sig.platform = navigator.platform || null;
+    const present = Object.keys(sig).filter(k=>sig[k]!==null && sig[k]!==undefined && sig[k]!=='');
+    const combined = hash32(JSON.stringify(sig));
+    const strong = [];
+    if(sig.canvas) strong.push('Canvas描画');
+    if(sig.gpu) strong.push('GPU名');
+    if(sig.fonts > 12) strong.push('フォント構成');
+    this.setState(s=>({net:{...s.net, fingerprint:{
+      loading:false,
+      text: combined,
+      color: strong.length>=2 ? 'oklch(0.55 0.13 75)' : 'oklch(0.5 0.01 40)',
+      rows: [
+        {label:'取得できた識別信号', value: present.length+' 種類'},
+        {label:'Canvas描画のハッシュ', value: sig.canvas || '取得不可（遮断されています）'},
+        {label:'GPU名', value: sig.gpu || '取得不可（遮断されています）'},
+        {label:'検出したフォント', value: sig.fonts+' / '+FONT_PROBE.length+' 種'},
+        {label:'画面と拡大率', value: sig.screen || '取得不可'},
+        {label:'論理コア数', value: sig.cores!=null ? String(sig.cores) : '非公開'},
+        {label:'言語設定', value: sig.langs || '—'},
+      ],
+      note: (strong.length>=2
+        ? '⚠ 識別力の高い信号（'+strong.join('・')+'）が揃っています。Cookieを消してもこの組み合わせで同一端末と判定されうる状態です。'
+        : '識別力の高い信号は限定的です。Canvas や GPU名 が取得不可になっているのは、ブラウザ側の指紋対策が効いている証拠です。')
+        + ' 上のハッシュは端末内で計算しただけで、どこにも送信していません。母集団の統計を持たないため「何人に1人」という数値は出しません——出せば根拠のない数字になります。判断材料は、信号が何種類取れてしまうかです。',
+      noteColor: strong.length>=2 ? 'oklch(0.55 0.13 75)' : 'oklch(0.5 0.01 40)',
+    }}}));
+  }
+
+  // ---- OS・ブラウザの更新状況 ----
+  _checkPlatform(){
+    const ua = navigator.userAgent || '';
+    const mIos = ua.match(/(?:iPhone|iPad|CPU) OS (\d+)[_.](\d+)/) || ua.match(/Version\/(\d+)\.(\d+).*Mobile/);
+    const mSaf = ua.match(/Version\/(\d+)\.(\d+)/);
+    const iosVer = mIos ? mIos[1]+'.'+mIos[2] : null;
+    const safVer = mSaf ? mSaf[1]+'.'+mSaf[2] : null;
+    const min = (this.state.data && this.state.data.minVersions) || MIN_VERSIONS_FALLBACK;
+    const iosOld = iosVer && cmpVersion(iosVer, min.ios) < 0;
+    const safOld = safVer && cmpVersion(safVer, min.safari) < 0;
+    const stale = iosOld || safOld;
+    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
+    this.setState(s=>({net:{...s.net, platform:{
+      loading:false,
+      text: iosVer ? ('iOS '+iosVer+(safVer ? ' / Safari '+safVer : '')) : '判定できませんでした',
+      color: stale ? amber : (iosVer ? green : grey),
+      rows: [
+        {label:'OS バージョン', value: iosVer || '不明'},
+        {label:'ブラウザ バージョン', value: safVer || '不明'},
+        {label:'基準（配信データ）', value: 'iOS '+min.ios+' / Safari '+min.safari},
+      ],
+      note: (stale
+        ? '⚠ 基準より古いバージョンです。公開済みの脆弱性が未修正のまま残っている可能性があります。設定 → 一般 → ソフトウェアアップデート から更新してください。'
+        : iosVer
+          ? '基準を満たしています。プライバシー設定をいくら詰めても、OSが古いままだとそこが最も弱い箇所になるため、この項目を最初に見る価値があります。'
+          : 'ユーザーエージェントからバージョンを判定できませんでした。ブラウザが情報を隠している場合にも起きます。')
+        + ' 基準値は配信データの minVersions で管理しているので、新しいOSが出れば更新だけで全端末の判定が変わります。',
+      noteColor: stale ? amber : grey,
+    }}}));
+  }
+
+  // ---- このアプリが端末に残しているもの ----
+  async _checkStorage(){
+    const rows = [];
+    let lsCount = 0, bytes = 0;
+    try{
+      const keys = Object.keys(localStorage);
+      lsCount = keys.length;
+      keys.forEach(k=>{ bytes += k.length + (localStorage.getItem(k)||'').length; });
+    }catch(e){}
+    rows.push({label:'localStorage の項目数', value: lsCount+' 件（約 '+Math.ceil(bytes/1024)+' KB）'});
+    let cookieVal = '確認できませんでした';
+    try{ cookieVal = document.cookie ? document.cookie.split(';').length+' 件' : '使用していません'; }catch(e){}
+    rows.push({label:'Cookie', value: cookieVal});
+    try{
+      const dbs = indexedDB.databases ? await indexedDB.databases() : null;
+      rows.push({label:'IndexedDB', value: dbs ? dbs.length+' 件' : '列挙非対応のブラウザ'});
+    }catch(e){ rows.push({label:'IndexedDB', value:'確認できませんでした'}); }
+    try{
+      const ks = window.caches ? await caches.keys() : null;
+      rows.push({label:'Cache Storage', value: ks ? ks.length+' 件' : '非対応'});
+    }catch(e){}
+    try{
+      const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : null;
+      rows.push({label:'Service Worker', value: regs ? regs.length+' 件' : '非対応'});
+    }catch(e){}
+    this.setState(s=>({net:{...s.net, storage:{
+      loading:false,
+      text: lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB',
+      color:'oklch(0.22 0.01 40)', rows,
+      note:'これはこのアプリ自身が端末に残しているものの実測です。チェック状況・台帳・設定はすべて localStorage（pa_ で始まるキー）に入っており、Cookie も外部送信も使っていません。他サイトの保存内容はブラウザが分離しているため、こちらからは見えません。Safari の設定 → 詳細 → Webサイトデータ から、いつでも全部消せます。',
+      noteColor:'oklch(0.5 0.01 40)',
+    }}}));
+  }
+
+  // ---- 前回からの変化（劣化検知） ----
+  _compareSnapshot(){
+    const n = this.state.net || {};
+    const get = (k,f) => (n[k] && n[k][f] !== undefined ? n[k][f] : null);
+    const snap = {
+      at: new Date().toISOString().slice(0,16).replace('T',' '),
+      exitIp: get('ipv4','text'),
+      vpn: get('vpnstatus','text'),
+      dns: (n.dns && n.dns.rows || []).reduce((a,r)=>r.label==='出口との関係'?r.value:a, null),
+      ipv6: get('ipv6','text'),
+      webrtc: /⚠/.test((n.webrtc && n.webrtc.note) || '') ? 'リークあり' : 'リークなし',
+      blocker: get('blocker','text'),
+      fingerprint: get('fingerprint','text'),
+      platform: get('platform','text'),
+    };
+    let hist = [];
+    try{ hist = JSON.parse(localStorage.getItem('pa_history') || '[]'); }catch(e){}
+    const prev = hist.length ? hist[hist.length-1] : null;
+    const FIELDS = [
+      ['platform','OS・ブラウザ'], ['vpn','VPN接続状態'], ['dns','DNSリゾルバ'],
+      ['webrtc','WebRTCリーク'], ['ipv6','IPv6'], ['blocker','トラッカー遮断'],
+      ['fingerprint','指紋ハッシュ'], ['exitIp','出口IP'],
+    ];
+    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
+    if(!prev){
+      try{ localStorage.setItem('pa_history', JSON.stringify([snap])); }catch(e){}
+      this.setState(s=>({net:{...s.net, history:{
+        loading:false, text:'初回の記録を保存しました', color:grey,
+        rows: FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
+        note:'次回以降、この記録と比べて変化した項目だけを並べます。設定が勝手に戻る類の事故は、こうして定点観測しないと気づけません。記録は端末内にのみ保存され、直近10回分だけ残します。',
+        noteColor:grey,
+      }}}));
+      return;
+    }
+    const changed = FIELDS.filter(([k])=>String(prev[k]) !== String(snap[k]));
+    const worse = changed.filter(([k])=>{
+      if(k==='webrtc') return snap.webrtc==='リークあり';
+      if(k==='blocker'){
+        const p=parseInt(prev.blocker,10), c=parseInt(snap.blocker,10);
+        return !isNaN(p) && !isNaN(c) && c < p;
+      }
+      if(k==='vpn') return /一般ISP回線/.test(String(snap.vpn||''));
+      if(k==='dns') return String(snap.dns)==='別組織';
+      if(k==='platform') return /⚠/.test((n.platform && n.platform.note) || '');
+      return false;
+    });
+    hist.push(snap);
+    if(hist.length > 10) hist = hist.slice(-10);
+    try{ localStorage.setItem('pa_history', JSON.stringify(hist)); }catch(e){}
+    this.setState(s=>({net:{...s.net, history:{
+      loading:false,
+      text: changed.length ? changed.length+' 項目が前回と変化' : '前回から変化なし',
+      color: worse.length ? amber : (changed.length ? grey : green),
+      rows: changed.length
+        ? changed.map(([k,l])=>({label:l+(worse.some(w=>w[0]===k)?'（悪化）':''), value: String(prev[k])+' → '+String(snap[k])}))
+        : FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
+      note: (worse.length
+        ? '⚠ '+worse.map(w=>w[1]).join('・')+' が前回より悪い状態です。設定が戻った、VPNが切れている、ブロッカーが無効になっている、などが疑われます。'
+        : changed.length
+          ? '変化はありますが、悪化と判断できるものはありません。出口IPや指紋ハッシュは回線や環境が変われば当然変わります。'
+          : '前回の記録から変化はありません。')
+        + ' 前回の記録：'+prev.at+'（端末内に直近10回分のみ保存）',
+      noteColor: worse.length ? amber : grey,
+    }}}));
   }
   async _checkIPv4(){
     // まずIPv4専用エンドポイントでアドレスを確定させ、そのうえで詳細を引く。
@@ -997,6 +1285,11 @@ class Component extends DCLogic {
         {id:'geoperm', title:'位置情報の許可', desc:'Permissions APIで取得した、このページに対する位置情報アクセスの許可状態です。あくまでこのページ単体の許可であり、端末全体やアプリごとの設定ではありません。アプリごとの許可は「設定 → プライバシーとセキュリティ → 位置情報サービス」で確認します。'},
         {id:'attperm', title:'トラッキング許可（App Tracking Transparency）', desc:'アプリが他社のアプリやサイトをまたいで行動を追跡してよいかという、iOS側の許可設定です。ATTはネイティブアプリ専用の枠組みで、Webページから読み取るAPIは存在しません。「設定 → プライバシーとセキュリティ → トラッキング」でオフにしておくと、アプリごとに許可を求める仕組みそのものを止められます。'},
         {id:'vpnstatus', title:'VPN接続状態', desc:'出口IPアドレスに登録されている組織名と、DNSリゾルバの位置関係から、VPNを経由しているかを推定します。組織名にVPN事業者名が入っていれば事業者まで特定できますが、多くの事業者はサーバーを借りて運用しているため、実際には貸主であるホスティング事業者名しか現れません。ブラウザから接続の有無を確定判定する手段はありません。'},
+        {id:'blocker', title:'トラッカー遮断の実測', desc:'既知のトラッキング用スクリプト（Google Analytics、Meta Pixel、Criteo等）へ実際にリクエストを投げ、遮断されるかを測ります。「コンテンツブロッカーを入れたつもり」ではなく、いま本当に効いているかが分かります。設定画面の読み取りではなく通信結果なので、拡張機能の失効やドメイン単位の除外設定も含めて実態が出ます。'},
+        {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報などから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。取得できる信号が少ないほど、またCanvasやGPU名が取得不可になっているほど、ブラウザ側の指紋対策が効いています。'},
+        {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準値は配信データ側で管理しているため、新しいOSが出ればデータ更新だけで全端末の判定が変わります。'},
+        {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているデータ量の実測です。localStorage・Cookie・IndexedDB・Cache Storage・Service Worker の使用状況を並べます。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。他サイトの保存内容はブラウザが分離しているので、こちらからは見えません。'},
+        {id:'history', title:'前回からの変化（劣化検知）', desc:'診断結果を端末内に記録し、前回と比べて変化した項目だけを並べます。悪化と判断できるもの（VPNが切れた、DNSが別組織に変わった、WebRTCリークが発生した、遮断できたトラッカーが減った、OSが基準を下回った）には印を付けます。設定が勝手に元へ戻る類の事故は、定点観測しないと気づけません。'},
       ];
       netChecksOut = netDefs.map(d=>{
         const r = (s.net && s.net[d.id]) || {};

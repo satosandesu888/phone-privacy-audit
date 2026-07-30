@@ -1,5 +1,9 @@
 {
-  "version": "2026-07-30a",
+  "version": "2026-07-30b",
+  "minVersions": {
+    "ios": "26.0",
+    "safari": "26.0"
+  },
   "apps": [
     {
       "id": "line",
