@@ -458,7 +458,27 @@ const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\
 // 診断は毎回いまの回線の値を見たいので、URLを毎回変えて中間キャッシュを避ける。
 // cache:'no-store' はブラウザキャッシュにしか効かず、CDNやAPI側の
 // エッジキャッシュには効かないことがある。
+// URLが毎回同じエンドポイントにだけ使う。パスにIPが入るもの（ipwho.is/<ip>）や、
+// 応答が接続元IPごとに変わるもの（am.i.mullvad.net）には付けない。付けると
+// 未知のクエリを受け付けないAPIが失敗する。
 const bust = url => url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+// 同一 /24 かどうか。VPN事業者のDNSは出口と同じネットワークに置かれることが多く、
+// 一般ISPではまず起きない。地域名の文字列比較より確実な手がかりになる。
+const sameSlash24 = (a,b) => {
+  if(!a || !b || a.includes(':') || b.includes(':')) return false;
+  return a.split('.').slice(0,3).join('.') === b.split('.').slice(0,3).join('.');
+};
+// 組織名から識別に使える語をひとつ取り出す。ip-api の geo は「Japan - Owl Limited」
+// のように国名と組織名を連結して返すので、国名側は捨てる。
+// 国の一致は根拠にならない——出口が日本のVPNでリゾルバが日本のISPなら国は
+// 一致するが、それはまさに漏れている状態。だから比較するのは国ではなく組織名。
+const ORG_STOPWORDS = new Set(['limited','ltd','inc','llc','ab','oy','oyj','gmbh','bv','srl','sarl','sa','as','co','corp','corporation','company','the','vpn','networks','network','communications','communication','telecom','telecommunications','internet','services','service','group','holding','technologies','technology']);
+const orgToken = str => {
+  const low = (str||'').toLowerCase().replace(/[.,()]/g,' ');
+  const after = low.includes(' - ') ? low.split(' - ').slice(1).join(' ') : low;
+  const toks = after.split(/\s+/).filter(t=>t && !ORG_STOPWORDS.has(t));
+  return toks[0] || '';
+};
 // 配信元。同じ場所に置いた settings-data.json を起動時に取得し、version が異なれば差し替える。
 // 別ホストで配信する場合は絶対URLを書いてgit pushすればよい（空文字なら内蔵データのみ・自動更新なし）。
 const REMOTE_URL = './settings-data.json';
@@ -615,9 +635,10 @@ class Component extends DCLogic {
     // WebRTC比較とVPN推定はIPv4の結果に依存する。待たずに判定すると誤報になるため、
     // Promiseを渡して各自で待たせる。
     const ipInfo = this._checkIPv4();
-    this._checkIPv6(); this._checkDNS(ipInfo); this._checkRoute(); this._checkTimezone(); this._checkTracking();
+    const dnsInfo = this._checkDNS(ipInfo);
+    this._checkIPv6(); this._checkRoute(); this._checkTimezone(); this._checkTracking();
     this._checkGeoPerm(); this._checkAttPerm();
-    this._checkWebRTC(ipInfo); this._checkVpnStatus(ipInfo);
+    this._checkWebRTC(ipInfo); this._checkVpnStatus(ipInfo, dnsInfo);
   }
   async _checkIPv4(){
     // まずIPv4専用エンドポイントでアドレスを確定させ、そのうえで詳細を引く。
@@ -638,7 +659,7 @@ class Component extends DCLogic {
     const looksV6 = ip.includes(':');
     let rows = [], org = '', country = '';
     try{
-      const r2 = await fetch(bust('https://ipwho.is/'+ip),{cache:'no-store'});
+      const r2 = await fetch('https://ipwho.is/'+ip,{cache:'no-store'});
       const d2 = await r2.json();
       if(d2 && d2.success!==false){
         const conn = d2.connection || {};
@@ -668,7 +689,7 @@ class Component extends DCLogic {
       const d = await r.json();
       let rows = [];
       try{
-        const r2 = await fetch(bust('https://ipwho.is/'+d.ip),{cache:'no-store'});
+        const r2 = await fetch('https://ipwho.is/'+d.ip,{cache:'no-store'});
         const d2 = await r2.json();
         if(d2 && d2.success!==false){
           const conn = d2.connection || {};
@@ -695,26 +716,45 @@ class Component extends DCLogic {
       const dns = (d && d.dns) || {};
       if(!dns.ip) throw new Error('no resolver info');
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
-      const exitCountry = (ipInfo && ipInfo.country) || '';
+      const exitIp = (ipInfo && ipInfo.ip) || '';
       const geo = dns.geo || '';
-      const match = !!(exitCountry && geo.toLowerCase().includes(exitCountry.toLowerCase()));
-      const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)';
+      const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
+      // 強い手がかりから順に見る。
+      const sameNet = sameSlash24(dns.ip, exitIp);
+      const exitOrg = (ipInfo && ipInfo.org) || '';
+      const exitTok = orgToken(exitOrg), resTok = orgToken(geo);
+      const orgMatch = !!(exitTok && resTok && exitTok === resTok);
+      const canCompare = sameNet || !!(exitTok && resTok);
+      let verdict, color, relation;
+      if(sameNet){
+        verdict = 'リゾルバが出口IPと同じネットワーク（/24）にあります。VPN事業者自身のDNSを使えており、漏洩はありません。';
+        color = green; relation = '同一ネットワーク（/24）';
+      } else if(orgMatch){
+        verdict = 'リゾルバの運営組織が出口IPと同じです。VPN事業者のDNSを使えています。';
+        color = green; relation = '同一事業者';
+      } else if(!canCompare){
+        verdict = '出口IPの組織情報が取れなかったため、比較できませんでした。リゾルバ自体は上記のとおりです。';
+        color = grey; relation = '比較不可';
+      } else {
+        verdict = 'リゾルバの運営組織が出口IPと異なります（出口「'+exitOrg+'」に対しリゾルバ「'+geo+'」）。ISPなど別経路のDNSに漏れている可能性があります。';
+        color = amber; relation = '別事業者';
+      }
       this.setState(s=>({net:{...s.net, dns:{
-        loading:false, text: dns.ip, color: match ? green : amber,
+        loading:false, text: dns.ip, color,
         rows:[
           {label:'問い合わせ元リゾルバ', value: dns.ip},
           {label:'リゾルバの所在', value: geo || '—'},
-          {label:'出口IPの国', value: exitCountry || '—'},
+          {label:'出口IP', value: exitIp || '—'},
+          {label:'出口との関係', value: relation},
         ],
-        note: (match
-          ? 'リゾルバの所在が出口IPの国と一致しています。VPN事業者のDNSを使えている可能性が高いです。'
-          : 'リゾルバの所在が出口IPの国と一致しません。ISPのDNSに漏れている可能性があります。')
-          + ' ここで分かるのは実際に問い合わせを行った1つのリゾルバだけです。dnsleaktest.com の拡張テストのように全リゾルバを列挙するには権威DNSサーバー側でログを取る必要があり、静的ページだけでは実施できません。網羅的に見たい場合はチェックリストの項目から dnsleaktest.com を直接開いてください。',
-        noteColor: match ? green : amber,
+        note: verdict + ' ここで分かるのは実際に問い合わせを行った1つのリゾルバだけです。dnsleaktest.com の拡張テストのように全リゾルバを列挙するには権威DNSサーバー側でログを取る必要があり、静的ページだけでは実施できません。網羅的に見たい場合はチェックリストの項目から dnsleaktest.com を直接開いてください。',
+        noteColor: color,
       }}}));
+      return {resolverIp: dns.ip, geo, sameNet};
     }catch(e){
       this.setState(s=>({net:{...s.net, dns:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
         note:'リゾルバ判定用エンドポイントに到達できませんでした（CORSまたはネットワーク制限）。dnsleaktest.com を直接開いて確認してください。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      return null;
     }
   }
   async _checkRoute(){
@@ -821,7 +861,7 @@ class Component extends DCLogic {
       note:'ATTrackingManagerで実際の許可状態（許可／拒否／未確認）を取得します。ブラウザには相当するAPIがないため、ここではプレースホルダーです。', noteColor:'oklch(0.5 0.01 40)',
     }}}));
   }
-  async _checkVpnStatus(ipInfoPromise){
+  async _checkVpnStatus(ipInfoPromise, dnsInfoPromise){
     try{
       let warp = false;
       try{
@@ -835,15 +875,21 @@ class Component extends DCLogic {
       // 公開している。到達できれば組織名からの推定ではなく確定判定になる。
       let mullvad = null;
       try{
-        const rm = await fetch(bust('https://am.i.mullvad.net/json'),{cache:'no-store'});
+        const rm = await fetch('https://am.i.mullvad.net/json',{cache:'no-store'});
         mullvad = await rm.json();
       }catch(e){}
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
+      const dnsInfo = await Promise.resolve(dnsInfoPromise).catch(()=>null);
       const org = (ipInfo && ipInfo.org) || '';
+      // 出口IPの組織名が取れなくても、同一ネットワークのリゾルバの所在文字列に
+      // 組織名が入っていることがある（例：「Japan - Owl Limited」）。そこも使う。
+      const geoOrg = (dnsInfo && dnsInfo.sameNet && dnsInfo.geo) ? dnsInfo.geo : '';
+      const orgForMatch = org || geoOrg;
+      const sameNetDns = !!(dnsInfo && dnsInfo.sameNet);
       let provider = null;
-      for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(org)){ provider = name; break; } }
+      for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(orgForMatch)){ provider = name; break; } }
       const onMullvad = !!(mullvad && mullvad.mullvad_exit_ip === true);
-      const isDc = !!(org && DATACENTER_ORG_RE.test(org));
+      const isDc = !!(orgForMatch && DATACENTER_ORG_RE.test(orgForMatch));
       let text, color;
       if(onMullvad){
         const host = mullvad.mullvad_exit_ip_hostname || '';
@@ -852,15 +898,17 @@ class Component extends DCLogic {
       }
       else if(provider){ text = '推定：'+provider+' 経由'; color = 'oklch(0.5 0.1 150)'; }
       else if(warp){ text = '推定：Cloudflare WARP 経由'; color = 'oklch(0.5 0.1 150)'; }
-      else if(isDc){ text = 'データセンター経由（事業者は特定できません）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(isDc){ text = 'データセンター経由（VPNの可能性が高い・事業者は特定できません）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(sameNetDns){ text = 'VPN経由の可能性が高い（DNSが出口と同一ネットワーク）'; color = 'oklch(0.5 0.1 150)'; }
       else if(org){ text = '一般ISP回線に見えます（VPN未使用の可能性）'; color = 'oklch(0.55 0.13 75)'; }
       else { text = '判定材料が得られませんでした'; color = 'oklch(0.5 0.01 40)'; }
-      const rows = [{label:'出口IPの登録組織名', value: org || '—'}];
+      const rows = [{label:'出口IPの登録組織名', value: org || (geoOrg ? geoOrg+'（リゾルバ側の表記）' : '—')}];
       if(mullvad && typeof mullvad.mullvad_exit_ip !== 'undefined'){
         rows.push({label:'Mullvad の自己申告', value: onMullvad ? '経由している' : '経由していない'});
       } else {
-        rows.push({label:'Mullvad の自己申告', value: '確認できませんでした'});
+        rows.push({label:'Mullvad の自己申告', value: '確認できませんでした（CORS制限の可能性）'});
       }
+      rows.push({label:'DNSリゾルバとの関係', value: sameNetDns ? '出口と同一ネットワーク' : '—'});
       rows.push({label:'Cloudflare WARP', value: warp ? '有効' : '無効'});
       this.setState(s=>({net:{...s.net, vpnstatus:{
         loading:false, text, color, rows,
