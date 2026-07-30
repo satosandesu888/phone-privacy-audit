@@ -30,6 +30,7 @@ jobs:
           assert len(ids) == len(set(ids)), '項目IDが重複しています'
           for a in d['apps']:
               assert a.get('id') and a.get('name'), 'アプリの id / name が未設定です'
+              assert a.get('category') in ('os', 'app', 'service'), f"{a.get('id')}: category が os / app / service のいずれでもありません"
               for i in a['items']:
                   for k in ('id', 'title', 'path', 'severity', 'why'):
                       assert i.get(k), f"{i.get('id')}: {k} が未設定です"

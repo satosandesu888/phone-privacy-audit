@@ -34,12 +34,7 @@ input,select,textarea{font-family:inherit}
       <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">CONFIG</div>
       <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 14px">設定</h3>
       <div style="display:flex;justify-content:space-between;font:400 12.5px/1.7 'IBM Plex Mono',monospace;padding:9px 0;border-bottom:1px dotted oklch(0.7 0.01 60);margin-bottom:16px"><span style="color:oklch(0.45 0.01 40)">データバージョン</span><b style="font-weight:600">{{ dataVersion }}</b></div>
-      <div style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:8px">保護レベル</div>
-      <div style="display:flex;gap:6px;margin-bottom:18px">
-        <sc-for list="{{ settingsLevelOptions }}" as="lv" hint-placeholder-count="3">
-          <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
-        </sc-for>
-      </div>
+      <p style="font:400 12px/1.7 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">監査レベルと対象の変更は、画面上部の「監査レベル、対象アプリ変更」から行います。</p>
       <button onClick="{{ closeSheet }}" style="width:100%;margin-top:8px;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">閉じる</button>
     </sc-if>
 
@@ -88,17 +83,24 @@ input,select,textarea{font-family:inherit}
     <div onClick="{{ toggleAllTemp }}" style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:3px;cursor:pointer">{{ allTempSelectedLabel }}</div>
   </div>
   <div style="border:1px solid oklch(0.78 0.01 60);border-radius:8px;overflow:hidden;margin-bottom:20px;background:oklch(0.99 0.005 85)">
-    <sc-for list="{{ onboardingApps }}" as="a" hint-placeholder-count="6">
-      <div onClick="{{ a.toggle }}" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
-        <div style="width:20px;height:20px;flex:none;border:1.5px solid oklch(0.4 0.01 40);border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ a.checkColor }};background:{{ a.checkBg }}">✓</div>
-        <div style="flex:1;min-width:0">
-          <div style="font:600 14.5px 'Source Serif 4',serif">{{ a.name }}</div>
-        </div>
-        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40)">{{ a.count }}項目</div>
+    <sc-for list="{{ onboardingGroups }}" as="grp" hint-placeholder-count="3">
+      <div style="display:flex;align-items:center;gap:8px;padding:11px 14px 9px;background:oklch(0.96 0.007 82);border-bottom:1px dotted oklch(0.78 0.01 60)">
+        <div style="font:700 10.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.4 0.01 40);white-space:nowrap">{{ grp.label }}</div>
+        <div style="flex:1;height:2px;background:repeating-linear-gradient(90deg,oklch(0.6 0.01 60) 0,oklch(0.6 0.01 60) 5px,transparent 5px,transparent 9px)"></div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);white-space:nowrap">{{ grp.hint }}</div>
       </div>
+      <sc-for list="{{ grp.apps }}" as="a" hint-placeholder-count="4">
+        <div onClick="{{ a.toggle }}" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
+          <div style="width:20px;height:20px;flex:none;border:1.5px solid oklch(0.4 0.01 40);border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ a.checkColor }};background:{{ a.checkBg }}">✓</div>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14.5px 'Source Serif 4',serif">{{ a.name }}</div>
+          </div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40)">{{ a.count }}項目</div>
+        </div>
+      </sc-for>
     </sc-for>
   </div>
-  <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">保護レベル</div>
+  <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">監査レベル</div>
   <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
     <sc-for list="{{ levelOptions }}" as="lv" hint-placeholder-count="3">
       <div onClick="{{ lv.click }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid {{ lv.borderColor }};border-radius:7px;background:{{ lv.bg }};cursor:pointer">
@@ -126,8 +128,10 @@ input,select,textarea{font-family:inherit}
   <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 2px 12px">
     <div style="font:700 14px 'Source Serif 4',serif;letter-spacing:.01em">iPhone<br>個人情報保護監査アプリ</div>
     <div style="display:flex;gap:8px">
-      <div onClick="{{ resetPicked }}" style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid oklch(0.78 0.01 60);border-radius:6px;background:oklch(0.99 0.005 85);color:oklch(0.4 0.01 40);font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;flex:none">対象アプリを変更</div>
-      <div onClick="{{ openSettings }}" style="width:32px;height:32px;flex:none;border:1px solid oklch(0.78 0.01 60);border-radius:6px;display:grid;place-items:center;font-size:13px;color:oklch(0.45 0.01 40);cursor:pointer;background:oklch(0.99 0.005 85)">⚙</div>
+      <div onClick="{{ resetPicked }}" style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid oklch(0.78 0.01 60);border-radius:6px;background:oklch(0.99 0.005 85);color:oklch(0.4 0.01 40);font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;flex:none">監査レベル、対象アプリ変更</div>
+      <div onClick="{{ openSettings }}" style="width:32px;height:32px;flex:none;border:1px solid oklch(0.78 0.01 60);border-radius:6px;display:grid;place-items:center;cursor:pointer;background:oklch(0.99 0.005 85)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.45 0.01 40)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-label="設定"><circle cx="12" cy="12" r="3.1"></circle><path d="M19.5 12c0-.5-.05-1-.14-1.47l1.86-1.32-1.86-3.22-2.15.86a7.6 7.6 0 0 0-2.55-1.47L14.3 3h-4.6l-.36 2.38a7.6 7.6 0 0 0-2.55 1.47l-2.15-.86-1.86 3.22L4.64 10.53c-.09.47-.14.97-.14 1.47s.05 1 .14 1.47L2.78 14.79l1.86 3.22 2.15-.86a7.6 7.6 0 0 0 2.55 1.47L9.7 21h4.6l.36-2.38a7.6 7.6 0 0 0 2.55-1.47l2.15.86 1.86-3.22-1.86-1.32c.09-.47.14-.97.14-1.47Z"></path></svg>
+      </div>
     </div>
   </div>
 
@@ -145,6 +149,12 @@ input,select,textarea{font-family:inherit}
     </div>
 
     <sc-if value="{{ isCheckView }}">
+      <div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:oklch(0.45 0.01 40);margin-bottom:7px">監査レベル</div>
+      <div style="display:flex;gap:6px;margin-bottom:16px">
+        <sc-for list="{{ settingsLevelOptions }}" as="lv" hint-placeholder-count="3">
+          <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
+        </sc-for>
+      </div>
       <div style="display:flex;gap:14px;padding:10px 0;border-top:1px solid oklch(0.78 0.01 60);border-bottom:1px solid oklch(0.78 0.01 60);font:400 12px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);margin-bottom:18px;flex-wrap:wrap">
         <span style="color:oklch(0.5 0.18 25);font-weight:700">要対応 {{ nHigh }}</span>
         <span>推奨 {{ nMed }}</span>
@@ -159,15 +169,15 @@ input,select,textarea{font-family:inherit}
       </div>
 
       <sc-for list="{{ appGroups }}" as="g" hint-placeholder-count="3">
-        <div style="margin-bottom:22px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+        <div style="margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
             <div style="font:700 10.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.4 0.01 40);white-space:nowrap">{{ g.name }}</div>
             <div style="flex:1;height:2px;background:repeating-linear-gradient(90deg,oklch(0.55 0.01 60) 0,oklch(0.55 0.01 60) 5px,transparent 5px,transparent 9px)"></div>
             <sc-if value="{{ g.allDone }}"><div style="font:600 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.1 150)">対応済</div></sc-if>
           </div>
 
           <sc-for list="{{ g.items }}" as="item" hint-placeholder-count="2">
-            <div style="position:relative;border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:15px 15px 13px;margin-bottom:12px;background:oklch(0.99 0.005 85);opacity:{{ item.opacity }}">
+            <div style="position:relative;border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:14px 15px 10px;margin-bottom:10px;background:oklch(0.99 0.005 85);opacity:{{ item.opacity }}">
               <sc-if value="{{ item.isHigh }}">
                 <div style="position:absolute;top:-11px;right:12px;border:2px solid oklch(0.5 0.18 25);color:oklch(0.5 0.18 25);font:700 10px 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:2px;transform:{{ item.stampRotate }};background:oklch(0.99 0.005 85);letter-spacing:.05em">要対応</div>
               </sc-if>
@@ -178,15 +188,15 @@ input,select,textarea{font-family:inherit}
                 <span>{{ item.fileNo }}</span>
                 <sc-if value="{{ item.isNewItem }}"><span style="color:oklch(0.5 0.18 25);font-weight:700">・ NEW</span></sc-if>
               </div>
-              <div style="font:600 15px/1.5 'Source Serif 4',serif;margin-bottom:8px;text-decoration:{{ item.strike }}">{{ item.title }}</div>
-              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);border-bottom:1px dotted oklch(0.6 0.01 60);padding-bottom:6px;margin-bottom:8px">{{ item.path }}</div>
-              <div style="font-style:italic;font:italic 400 12.5px/1.75 'Source Serif 4',serif;color:oklch(0.4 0.01 40)">{{ item.why }}</div>
+              <div style="font:600 15px/1.45 'Source Serif 4',serif;margin-bottom:6px;text-decoration:{{ item.strike }}">{{ item.title }}</div>
+              <div style="font:400 10.5px/1.5 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);border-bottom:1px dotted oklch(0.6 0.01 60);padding-bottom:5px;margin-bottom:7px">{{ item.path }}</div>
+              <div style="font-style:italic;font:italic 400 12.5px/1.65 'Source Serif 4',serif;color:oklch(0.4 0.01 40)">{{ item.why }}</div>
               <sc-if value="{{ item.hasWatch }}">
                 <div style="font:400 11.5px/1.6 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);border-top:1px dashed oklch(0.5 0.18 25);padding-top:8px;margin-top:9px">注記：{{ item.watch }}</div>
               </sc-if>
-              <div style="margin-top:11px;font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 60)">確認日 {{ item.verifiedAt }}</div>
-              <div style="margin-top:9px;display:flex;justify-content:flex-end">
-                <div onClick="{{ item.toggle }}" style="width:24px;height:24px;border:1.5px solid {{ item.checkBorder }};border-radius:3px;display:grid;place-items:center;font:700 13px 'IBM Plex Mono',monospace;color:{{ item.checkColor }};cursor:pointer">✓</div>
+              <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 60)">確認日 {{ item.verifiedAt }}</div>
+                <div onClick="{{ item.toggle }}" style="width:24px;height:24px;flex:none;border:1.5px solid {{ item.checkBorder }};border-radius:3px;display:grid;place-items:center;font:700 13px 'IBM Plex Mono',monospace;color:{{ item.checkColor }};cursor:pointer">✓</div>
               </div>
             </div>
           </sc-for>
@@ -270,7 +280,7 @@ input,select,textarea{font-family:inherit}
       <div style="border-top:1px solid oklch(0.78 0.01 60);margin:22px 0 18px"></div>
 
       <div style="font:700 13px 'Source Serif 4',serif;margin-bottom:5px">通知設定</div>
-      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:12px">ネイティブ版ではUNUserNotificationCenter（OS標準の通知）で実装します。ここではトグルの見た目と、ブラウザ通知での代用テストのみ確認できます。</div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:12px">iPhoneのSafariは、タブで開いている間は通知を出せません。共有ボタンから「ホーム画面に追加」し、そのアイコンから起動すると通知が使えます（iOS 16.4以降）。</div>
 
       <div onClick="{{ toggleNotifyNew }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
         <div>
@@ -348,8 +358,8 @@ input,select,textarea{font-family:inherit}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const APP_DATA = {"version":"2026-07-29c","apps":[
-{"id":"line","name":"LINE","icon":"L","items":[
+const APP_DATA = {"version":"2026-07-30a","apps":[
+{"id":"line","name":"LINE","icon":"L","category":"app","items":[
   {"id":"line-talkroom-info","title":"トークルーム情報の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供 → トークルーム情報","severity":"high","why":"トークルーム内のURLやスタンプの利用状況が、サービス改善名目でLINEヤフーに送られる。既定はオン。","verifiedAt":"2026-07-29"},
   {"id":"line-web-ads","title":"ウェブ追跡型広告の受信をオフ","path":"設定 → プライバシー管理 → 情報の提供 → ウェブ追跡型広告の受信","severity":"medium","why":"外部サイトの閲覧履歴をもとにLINE内の広告が最適化される。","verifiedAt":"2026-07-29"},
   {"id":"line-ocr-photo","title":"文字認識用の写真の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供","severity":"high","why":"OCR精度向上のために、送受信した写真が提供対象になる。","verifiedAt":"2026-07-29"},
@@ -359,63 +369,63 @@ const APP_DATA = {"version":"2026-07-29c","apps":[
   {"id":"line-app-access","title":"アプリからの情報アクセスを見直し","path":"設定 → プライバシー管理 → アプリからの情報アクセス","severity":"medium","why":"連携アプリに渡すプロフィール情報の範囲を絞る。","verifiedAt":"2026-07-29"},
   {"id":"line-yahoo-link","title":"Yahoo! JAPAN IDとの連携を確認","path":"設定 → account center","severity":"medium","why":"連携すると双方のサービス間でアカウント情報が結びつく。使う予定がなければ解除できる。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"google","name":"Google / Gemini","icon":"G","items":[
+{"id":"google","name":"Google / Gemini","icon":"G","category":"service","items":[
   {"id":"google-gemini-activity","title":"Geminiアプリアクティビティをオフ","path":"Gemini → 設定 → アクティビティ → Geminiアプリアクティビティ","severity":"high","why":"既定オン。入力したテキスト・画像・音声・添付ファイルが保存され、モデル改善に使われる範囲に入る。オフにすると過去のチャット履歴が使えなくなる点は要覚悟。","verifiedAt":"2026-07-29"},
   {"id":"google-auto-delete","title":"アクティビティの自動削除を3か月に","path":"マイアクティビティ → 自動削除オプションを選択 → 3か月","severity":"medium","why":"選択肢は3か月・18か月・36か月。既定はより長い期間。","verifiedAt":"2026-07-29"},
   {"id":"google-waa","title":"ウェブとアプリのアクティビティを見直し","path":"Googleアカウント → データとプライバシー → ウェブとアプリのアクティビティ","severity":"medium","why":"検索・閲覧履歴の保存範囲。「Chromeの履歴」の同梱チェックも確認する。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"ios","name":"iOS 26","icon":"iOS","items":[
+{"id":"ios","name":"iOS 26","icon":"iOS","category":"os","items":[
   {"id":"ios-reduce-transparency","title":"透明度を下げるをオン","path":"設定 → アクセシビリティ → 画面表示とテキストサイズ → 透明度を下げる","severity":"low","why":"Liquid Glassのぼかし描画をGPUが毎フレーム計算しなくなる。","verifiedAt":"2026-07-29"},
   {"id":"ios-reduce-motion","title":"視差効果を減らすをオン","path":"設定 → アクセシビリティ → 動作 → 視差効果を減らす","severity":"low","why":"透明度とセットで効く。アニメーションの描画負荷が下がる。","verifiedAt":"2026-07-29"},
   {"id":"ios-tracking","title":"アプリからのトラッキング要求を許可をオフ","path":"設定 → プライバシーとセキュリティ → トラッキング","severity":"high","why":"各アプリが個別に許可を求めてくる仕組みごと止める。","verifiedAt":"2026-07-29"},
   {"id":"ios-personalized-ads","title":"パーソナライズされた広告をオフ","path":"設定 → プライバシーとセキュリティ → Appleの広告","severity":"medium","why":"App StoreやApple News内の広告最適化にアカウント情報が使われる。","verifiedAt":"2026-07-29"},
   {"id":"ios-analytics","title":"解析データの共有をオフ","path":"設定 → プライバシーとセキュリティ → 解析および改善","severity":"low","why":"利用状況データのAppleへの送信を止める。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"meta","name":"Instagram / Facebook","icon":"Meta","items":[
+{"id":"meta","name":"Instagram / Facebook","icon":"Meta","category":"app","items":[
   {"id":"meta-muse-image-optout","title":"AI画像合成の素材利用をオプトアウト","path":"プライバシーセンター → 生成AIモデルと機能 → 異議申し立て","severity":"high","why":"公開アカウントの写真は、拒否しない限り自動でMetaの画像生成AIの素材にされる。通知も来ない。","verifiedAt":"2026-07-29"},
   {"id":"meta-ai-training-optout","title":"投稿・活動データのAI学習利用に異議申し立て","path":"設定 → プライバシーセンター → 異議申し立て","severity":"high","why":"公開設定の投稿は生成AIの学習対象になりうる。","verifiedAt":"2026-07-29"},
   {"id":"meta-account-privacy","title":"公開範囲を「フォロワーのみ」に見直し","path":"設定 → プライバシー → アカウントのプライバシー","severity":"medium","why":"非公開アカウントにすると、AI学習対象からも外れやすくなる。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"x","name":"X (旧Twitter)","icon":"X","items":[
+{"id":"x","name":"X (旧Twitter)","icon":"X","category":"app","items":[
   {"id":"x-grok-datasharing","title":"Grokへのデータ共有をオフ","path":"設定とプライバシー → プライバシーと安全 → データ共有とカスタマイズ → Grok","severity":"high","why":"投稿とGrokとのやり取りがxAIのモデル訓練に使われる。既定オン。ウェブ版のみ変更可。","watch":"リロード後に自動でオンへ戻る不具合が報告されている。定期的な再確認が必要。","verifiedAt":"2026-07-29"},
   {"id":"x-personalized-ads","title":"興味関心に基づく広告をオフ","path":"設定とプライバシー → プライバシーと安全 → 広告の設定","severity":"medium","why":"行動履歴に基づく広告表示の停止。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"tiktok","name":"TikTok","icon":"TT","items":[
+{"id":"tiktok","name":"TikTok","icon":"TT","category":"app","items":[
   {"id":"tiktok-personalized-ads","title":"パーソナライズド広告をオフ","path":"プロフィール → 設定とプライバシー → 広告 → データを使用したパーソナライズ","severity":"medium","why":"アプリ内外の行動データが広告表示に使われる。","verifiedAt":"2026-07-29"},
   {"id":"tiktok-off-activity","title":"TikTok外でのアクティビティを消去","path":"設定とプライバシー → 広告 → TikTok外でのアクティビティ","severity":"medium","why":"広告パートナーが共有した外部の行動データを削除できる。24時間ごとに再消去可能。","verifiedAt":"2026-07-29"},
   {"id":"tiktok-private-account","title":"非公開アカウントを確認","path":"プロフィール → 設定とプライバシー → プライバシー","severity":"low","why":"公開設定だと投稿が誰でも見られ、リミックスやデュエットの対象にもなる。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"amazon","name":"Amazon / Alexa","icon":"AMZ","items":[
+{"id":"amazon","name":"Amazon / Alexa","icon":"AMZ","category":"service","items":[
   {"id":"amazon-alexa-voice-history","title":"音声履歴の自動削除を3か月に設定","path":"Alexaアプリ → その他 → Alexaプライバシー → Alexaデータを管理","severity":"medium","why":"既定は「削除するまで保存」。3か月・18か月・保存しないから選べる。","verifiedAt":"2026-07-29"},
   {"id":"amazon-ads-personalization","title":"広告のカスタマイズをオフ","path":"Amazonアカウント → ログインとセキュリティ → 広告の設定","severity":"low","why":"購入・閲覧履歴に基づく広告最適化を止める。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"openai","name":"ChatGPT / OpenAI","icon":"GPT","items":[
+{"id":"openai","name":"ChatGPT / OpenAI","icon":"GPT","category":"service","items":[
   {"id":"openai-improve-model-off","title":"「すべての人のためにモデルを改善する」をオフ","path":"設定 → データコントロール","severity":"high","why":"既定オン。会話データがモデル学習に使われる。オフにしてもオフ以前の会話は対象外にならない。","verifiedAt":"2026-07-29"},
   {"id":"openai-temporary-chat","title":"機微な内容は一時チャットを使う","path":"新規チャット → 一時チャット","severity":"medium","why":"履歴に残らず、学習にも使われない。ただし共有リンクを作った内容は例外的に公開情報として扱われる。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"github","name":"GitHub","icon":"GH","items":[
+{"id":"github","name":"GitHub","icon":"GH","category":"service","items":[
   {"id":"github-2fa","title":"2要素認証（TOTP）が有効か確認","path":"Settings → Password and authentication → Two-factor methods","severity":"high","why":"SMSより認証アプリ（TOTP）方式が推奨。復旧コードは印刷などオフラインで保管する。","verifiedAt":"2026-07-29"},
   {"id":"github-oauth-apps","title":"認可済みOAuthアプリを棚卸し","path":"Settings → Applications → Authorized OAuth Apps","severity":"medium","why":"過去に許可した外部サービスがリポジトリへのアクセス権を持ったまま残っていることが多い。","verifiedAt":"2026-07-29"},
   {"id":"github-security-log","title":"セキュリティログで身に覚えのないログインを確認","path":"Settings → Password and authentication → Security log","severity":"medium","why":"自分がしていない時間帯のログインがあれば侵害の兆候。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"discord","name":"Discord","icon":"DC","items":[
+{"id":"discord","name":"Discord","icon":"DC","category":"app","items":[
   {"id":"discord-personalize-off","title":"データを使用したパーソナライズをオフ","path":"ユーザー設定 → データ&プライバシー → Discordの体験をパーソナライズ","severity":"medium","why":"アカウント固有の行動データがおすすめ表示に使われなくなる。","verifiedAt":"2026-07-29"},
   {"id":"discord-dm-restrict","title":"サーバーメンバーからのDMを制限","path":"ユーザー設定 → プライバシーと安全","severity":"medium","why":"友だち以外の同一サーバー参加者から届く不要なDMやスパムを防ぐ。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"whatsapp","name":"WhatsApp","icon":"WA","items":[
+{"id":"whatsapp","name":"WhatsApp","icon":"WA","category":"app","items":[
   {"id":"whatsapp-last-seen","title":"最終ログイン・プロフィール写真の公開範囲を絞る","path":"設定 → アカウント → プライバシー","severity":"medium","why":"「誰にでも」から「連絡先のみ」または「なし」に変更できる。","verifiedAt":"2026-07-29"},
   {"id":"whatsapp-linked-devices","title":"リンク済みデバイスを確認","path":"設定 → リンク済みのデバイス","severity":"high","why":"見覚えのない端末が接続されていないか定期的に確認し、あればログアウトさせる。","verifiedAt":"2026-07-29"},
   {"id":"whatsapp-backup-e2e","title":"バックアップのエンドツーエンド暗号化をオン","path":"設定 → チャット → チャットのバックアップ → エンドツーエンド暗号化バックアップ","severity":"medium","why":"既定オフ。オフのままだとクラウド上のバックアップは独自の暗号化を受けない。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"yahoo","name":"Yahoo! JAPAN","icon":"Y","items":[
+{"id":"yahoo","name":"Yahoo! JAPAN","icon":"Y","category":"service","items":[
   {"id":"yahoo-line-link","title":"LINEとのID連携状況を確認","path":"アカウントセンター（LINEアプリ内、または id.yahoo.co.jp）","severity":"medium","why":"連携すると双方のサービスに情報が結びつく。使っていなければ「解除」をタップするだけで切れる。","verifiedAt":"2026-07-29"},
   {"id":"yahoo-ads-personalization","title":"広告のパーソナライズをオフ","path":"プライバシーセンター → プライバシー設定 → 広告","severity":"low","why":"検索・閲覧履歴に基づく広告最適化を止める。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"paypay","name":"PayPay","icon":"PP","items":[
+{"id":"paypay","name":"PayPay","icon":"PP","category":"app","items":[
   {"id":"paypay-external-link","title":"外部サービス連携を棚卸し","path":"アプリ → アカウント → 外部サービス連携","severity":"medium","why":"連携済みサービスとそこに提供されている情報の範囲を一覧で確認できる。","verifiedAt":"2026-07-29"},
   {"id":"paypay-info-disclosure","title":"情報の開示・非開示設定を確認","path":"プライバシー設定方法ページ経由 → 各種開示設定","severity":"low","why":"自分の情報がどこまで公開・共有されているかを見直す。","verifiedAt":"2026-07-29"}
 ]},
-{"id":"vpn","name":"VPN（Mullvad等）","icon":"VPN","items":[
+{"id":"vpn","name":"VPN","icon":"VPN","category":"app","items":[
   {"id":"vpn-killswitch","title":"キルスイッチが有効か確認","path":"VPNアプリ → 設定 → VPN設定 → キルスイッチ / ローカルネットワーク共有","severity":"high","why":"VPN接続が切れた瞬間に生の通信が漏れるのを防ぐ。設定変更後は必ず再確認する。","verifiedAt":"2026-07-29"},
   {"id":"vpn-dns-leak-test","title":"DNSリークテストを定期的に実施","path":"ブラウザで dnsleaktest.com などにアクセスして確認","severity":"medium","why":"表示されたDNSサーバーがVPN事業者のものでなければ、DNSクエリが漏れている可能性がある。","verifiedAt":"2026-07-29"}
 ]}
@@ -429,6 +439,12 @@ const LEVELS = [
   {id:'thorough', label:'徹底 — すべて確認', desc:'任意の項目も含めて棚卸し'},
 ];
 const SEV_ALLOW = {basic:['high'], standard:['high','medium'], thorough:['high','medium','low']};
+// 初回選択画面の並び。data側に category が無い古いデータは 'app' として扱う。
+const CATEGORIES = [
+  {id:'os',      label:'OS',       hint:'端末そのものの設定'},
+  {id:'app',     label:'アプリ',   hint:'端末に入れているもの'},
+  {id:'service', label:'サービス', hint:'アカウントで使うもの'},
+];
 const isPrivateIp = ip => /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^127\.|^169\.254\./.test(ip);
 // 出口IPの登録組織名（ipwho.is の connection.isp / org）から事業者を推定する対照表。
 // 組織名が事業者名を含む場合はここまで特定できる。
@@ -458,9 +474,8 @@ const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\
 // 診断は毎回いまの回線の値を見たいので、URLを毎回変えて中間キャッシュを避ける。
 // cache:'no-store' はブラウザキャッシュにしか効かず、CDNやAPI側の
 // エッジキャッシュには効かないことがある。
-// URLが毎回同じエンドポイントにだけ使う。パスにIPが入るもの（ipwho.is/<ip>）や、
-// 応答が接続元IPごとに変わるもの（am.i.mullvad.net）には付けない。付けると
-// 未知のクエリを受け付けないAPIが失敗する。
+// URLが毎回同じエンドポイントにだけ使う。パスにIPが入るもの（ipwho.is/<ip>）は
+// URL自体が変わるので不要。未知のクエリを受け付けないAPIに付けると失敗する。
 const bust = url => url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
 // 同一 /24 かどうか。VPN事業者のDNSは出口と同じネットワークに置かれることが多く、
 // 一般ISPではまず起きない。地域名の文字列比較より確実な手がかりになる。
@@ -535,13 +550,18 @@ class Component extends DCLogic {
   setRemindDays(n){ this.setState({remindDays:n}, ()=>this.persist()); }
 
   async testNotify(){
-    if(!('Notification' in window)){ alert('このブラウザは通知に対応していません。'); return; }
+    if(!('Notification' in window)){
+      // iOS Safari はタブで開いている間は通知APIを持たない。ホーム画面に
+      // 追加したWebアプリとして起動した場合のみ iOS 16.4 以降で使える。
+      alert('このブラウザでは通知を使えません。\n\niPhoneのSafariでは、タブで開いている間は通知を出せない仕様です。共有ボタンから「ホーム画面に追加」して、そのアイコンから起動すると使えるようになります（iOS 16.4以降）。');
+      return;
+    }
     let perm = Notification.permission;
     if(perm === 'default'){ perm = await Notification.requestPermission(); }
     if(perm === 'granted'){
       new Notification('個人情報保護確認', { body: '新しい確認項目が2件追加されました（テスト通知）' });
     } else {
-      alert('通知が許可されていません。ブラウザの通知設定を確認してください。\n\nこれはブラウザ通知での代用です。ネイティブ版ではUNUserNotificationCenterでOS標準の通知として届きます。');
+      alert('通知が許可されていません。ブラウザの通知設定を確認してください。\n\nこれはブラウザ通知での代用です。');
     }
   }
 
@@ -653,7 +673,7 @@ class Component extends DCLogic {
     }catch(e){}
     if(!ip){
       this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
-        note:'IPv4専用エンドポイントに到達できませんでした。IPv4を持たない接続かもしれません。', noteColor:'oklch(0.5 0.01 40)'}}}));
+        note:'取得先に接続できませんでした。IPv4を持たない回線の可能性もあります。', noteColor:'oklch(0.5 0.01 40)'}}}));
       return null;
     }
     const looksV6 = ip.includes(':');
@@ -666,7 +686,7 @@ class Component extends DCLogic {
         org = conn.isp || conn.org || '';
         country = d2.country || '';
         rows = [
-          {label:'ISP / 組織', value: org || '—'},
+          {label:'この番号の持ち主', value: org || '—'},
           {label:'国', value: country || '—'},
           {label:'都道府県', value: d2.region || '—'},
           {label:'市区町村', value: d2.city || '—'},
@@ -677,8 +697,8 @@ class Component extends DCLogic {
     this.setState(s=>({net:{...s.net, ipv4:{
       loading:false, text: ip, color:'oklch(0.22 0.01 40)', rows,
       note: looksV6
-        ? '⚠ IPv4専用エンドポイントがIPv6を返しました。想定外の状態です。'
-        : (rows.length ? 'VPN接続中なら、接続先サーバーのISP・所在地が表示されるはず' : '詳細情報（ISP・所在地）の取得には失敗しました'),
+        ? '⚠ 想定外の状態です。IPv4専用の取得先が新方式のアドレスを返しました。'
+        : (rows.length ? 'VPNを使っていれば、ここに出るのは自宅ではなくVPNの接続先です。自宅の地名や契約している回線会社の名前が出ていたら、VPNを通っていません。' : '番号は取れましたが、持ち主と場所の情報は取得できませんでした。'),
       noteColor: looksV6 ? 'oklch(0.5 0.18 25)' : 'oklch(0.5 0.01 40)',
     }}}));
     return {ip, org, country, looksV6};
@@ -701,9 +721,9 @@ class Component extends DCLogic {
           ];
         }
       }catch(e2){}
-      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:d.ip, color:'oklch(0.22 0.01 40)', rows, note:'IPv6が有効です。これ自体は異常ではありません。VPNがIPv6に対応していない場合にかぎり、この経路が実IPを示すことがあります。上のIPv4診断と国・ISPが一致していれば問題ありません。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:d.ip, color:'oklch(0.22 0.01 40)', rows, note:'新方式のアドレスを持っています。これ自体はふつうのことで、問題ではありません。上の「外から見えているアドレス」と持ち主・国が同じなら、こちらもVPNを通っています。違っていたら、VPNがこの方式に未対応で自宅の回線が見えている状態です。', noteColor:'oklch(0.5 0.01 40)'}}}));
     }catch(e){
-      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:'割り当てなし（安全）', color:'oklch(0.5 0.1 150)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:'持っていません', color:'oklch(0.5 0.1 150)', rows:[], note:'新方式のアドレスが割り当てられていないので、この経路から漏れる心配はありません。', noteColor:'oklch(0.5 0.1 150)'}}}));
     }
   }
   async _checkDNS(ipInfoPromise){
@@ -727,33 +747,33 @@ class Component extends DCLogic {
       const canCompare = sameNet || !!(exitTok && resTok);
       let verdict, color, relation;
       if(sameNet){
-        verdict = 'リゾルバが出口IPと同じネットワーク（/24）にあります。VPN事業者自身のDNSを使えており、漏洩はありません。';
-        color = green; relation = '同一ネットワーク（/24）';
+        verdict = '担当サーバーが、通信の出口とすぐ隣のアドレスにあります。VPN会社が用意したサーバーを使えているということで、漏れていません。';
+        color = green; relation = '出口とすぐ隣';
       } else if(orgMatch){
-        verdict = 'リゾルバの運営組織が出口IPと同じです。VPN事業者のDNSを使えています。';
-        color = green; relation = '同一事業者';
+        verdict = '担当サーバーの持ち主が、通信の出口と同じ会社です。VPN会社のサーバーを使えており、漏れていません。';
+        color = green; relation = '出口と同じ会社';
       } else if(!canCompare){
-        verdict = '出口IPの組織情報が取れなかったため、比較できませんでした。リゾルバ自体は上記のとおりです。';
-        color = grey; relation = '比較不可';
+        verdict = '出口側の持ち主が分からなかったため、比べられませんでした。漏れているという意味ではありません。担当サーバー自体は上のとおりです。';
+        color = grey; relation = '比べられません';
       } else {
-        verdict = 'リゾルバの運営組織が出口IPと異なります（出口「'+exitOrg+'」に対しリゾルバ「'+geo+'」）。ISPなど別経路のDNSに漏れている可能性があります。';
-        color = amber; relation = '別事業者';
+        verdict = '担当サーバーの持ち主が、通信の出口と違う会社です（出口は「'+exitOrg+'」、担当サーバーは「'+geo+'」）。契約している回線会社のサーバーを使っている可能性があり、その場合「どのサイトを見たか」は回線会社に伝わります。';
+        color = amber; relation = '出口と違う会社';
       }
       this.setState(s=>({net:{...s.net, dns:{
         loading:false, text: dns.ip, color,
         rows:[
-          {label:'問い合わせ元リゾルバ', value: dns.ip},
-          {label:'リゾルバの所在', value: geo || '—'},
-          {label:'出口IP', value: exitIp || '—'},
+          {label:'調べた担当サーバー', value: dns.ip},
+          {label:'その持ち主と場所', value: geo || '—'},
+          {label:'通信の出口', value: exitIp || '—'},
           {label:'出口との関係', value: relation},
         ],
-        note: verdict + ' ここで分かるのは実際に問い合わせを行った1つのリゾルバだけです。dnsleaktest.com の拡張テストのように全リゾルバを列挙するには権威DNSサーバー側でログを取る必要があり、静的ページだけでは実施できません。網羅的に見たい場合はチェックリストの項目から dnsleaktest.com を直接開いてください。',
+        note: verdict + ' なお、ここで分かるのは実際に使われた1台だけです。使われている全部のサーバーを一覧するには専用の設備が必要で、このページだけでは調べられません。徹底的に確認したい場合は dnsleaktest.com を直接開いてください（チェックリストにも項目として入れてあります）。',
         noteColor: color,
       }}}));
       return {resolverIp: dns.ip, geo, sameNet};
     }catch(e){
       this.setState(s=>({net:{...s.net, dns:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
-        note:'リゾルバ判定用エンドポイントに到達できませんでした（CORSまたはネットワーク制限）。dnsleaktest.com を直接開いて確認してください。', noteColor:'oklch(0.5 0.01 40)'}}}));
+        note:'確認用の取得先に接続できませんでした。漏れているという意味ではありません。dnsleaktest.com を直接開いて確認してください。', noteColor:'oklch(0.5 0.01 40)'}}}));
       return null;
     }
   }
@@ -764,12 +784,12 @@ class Component extends DCLogic {
       const obj = {};
       text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
       const rows = [
-        {label:'出口IP', value: obj.ip || '—'},
-        {label:'エッジ拠点 (colo)', value: obj.colo || '—'},
-        {label:'WARP', value: obj.warp==='on' ? '有効' : '無効'},
-        {label:'TLSバージョン', value: obj.tls || '—'},
+        {label:'外に出ているアドレス', value: obj.ip || '—'},
+        {label:'到達している拠点', value: obj.colo || '—'},
+        {label:'Cloudflare WARP', value: obj.warp==='on' ? '使用中' : '不使用'},
+        {label:'通信の暗号化方式', value: obj.tls || '—'},
       ];
-      this.setState(s=>({net:{...s.net, route:{loading:false, text:'colo: '+(obj.colo||'—'), color:'oklch(0.22 0.01 40)', rows, note:'ブラウザから実際のtraceroute（経由ルーター一覧）は取得できません。到達しているネットワーク結節点を代替指標として表示しています。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      this.setState(s=>({net:{...s.net, route:{loading:false, text:'colo: '+(obj.colo||'—'), color:'oklch(0.22 0.01 40)', rows, note:'通信が通った全部の中継地点をブラウザから調べることはできません。ここでは到達している拠点を目安として表示しています。拠点の場所が上のアドレスの国とかけ離れていなければ、通常の状態です。', noteColor:'oklch(0.5 0.01 40)'}}}));
     }catch(e){
       this.setState(s=>({net:{...s.net, route:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
     }
@@ -800,30 +820,30 @@ class Component extends DCLogic {
       const green='oklch(0.5 0.1 150)', red='oklch(0.5 0.18 25)', grey='oklch(0.5 0.01 40)';
       let note, noteColor;
       if(leaked.length){
-        note='⚠ 上のIPv4診断とは別の公開IPが検出されました：'+leaked.join(' / ')+'　VPN使用中ならこれが実IPの可能性があります。';
+        note='⚠ 上に出ている番号とは別の番号が見つかりました：'+leaked.join(' / ')+'　VPNを使っている場合、これが自宅の番号として相手に伝わっている可能性があります。';
         noteColor=red;
       } else if(undecidable){
-        note='IPv4診断の結果が得られなかったため、比較できませんでした。';
+        note='比べる相手（上のアドレス）が取れなかったため、判断できませんでした。漏れているという意味ではありません。';
         noteColor=grey;
       } else if(publicFound.length){
-        note='検出された公開IPは、上のIPv4診断と同じでした（漏洩なし）。';
+        note='見つかった番号は、上に出ているアドレスと同じでした。漏れていません。';
         noteColor=green;
       } else if(list.length){
-        note='ローカル/プライベートアドレスのみでした（漏洩なし）。';
+        note='家庭内でしか通じない番号だけでした。外部には伝わらないので、漏れていません。';
         noteColor=green;
       } else {
-        note='このブラウザ・接続ではWebRTC候補が生成されませんでした。';
+        note='この環境では番号が一つも出てきませんでした。漏れる経路がないということです。';
         noteColor=grey;
       }
       this.setState(s=>({net:{...s.net, webrtc:{
         loading:false,
-        text: list.length ? list.join(' / ') : '候補IPは検出されませんでした',
+        text: list.length ? list.join(' / ') : '番号は出てきませんでした',
         color: leaked.length ? red : (undecidable || !list.length ? grey : green),
         note, noteColor,
         rows:[],
       }}}));
     }catch(e){
-      this.setState(s=>({net:{...s.net, webrtc:{loading:false, text:'このブラウザでは検査できません', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, webrtc:{loading:false, text:'この環境では確認できません', color:'oklch(0.5 0.01 40)', rows:[]}}}));
     }
   }
   _checkTimezone(){
@@ -831,34 +851,34 @@ class Component extends DCLogic {
     const offsetMin = -new Date().getTimezoneOffset();
     const sign = offsetMin>=0 ? '+' : '-';
     const offset = 'UTC'+sign+String(Math.floor(Math.abs(offsetMin)/60)).padStart(2,'0')+':'+String(Math.abs(offsetMin)%60).padStart(2,'0');
-    this.setState(s=>({net:{...s.net, tz:{loading:false, text:tz+'（'+offset+'）', color:'oklch(0.22 0.01 40)', rows:[], note:'上記IPv4診断の「国」と大きく異なる場合、VPN以外の経路でタイムゾーン情報が漏れている可能性があります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+    this.setState(s=>({net:{...s.net, tz:{loading:false, text:tz+'（'+offset+'）', color:'oklch(0.22 0.01 40)', rows:[], note:'上の「外から見えているアドレス」の国と大きく違う場合、時刻帯から実際の居場所を推測される材料になります。VPNで国を変えて使うなら、端末の時刻帯も合わせるか、この食い違いを承知のうえで使うことになります。', noteColor:'oklch(0.5 0.01 40)'}}}));
   }
   _checkTracking(){
     const dnt = (navigator.doNotTrack==='1' || window.doNotTrack==='1' || navigator.doNotTrack==='yes') ? '有効' : (navigator.doNotTrack==='0' ? '無効' : '未設定');
     const gpc = typeof navigator.globalPrivacyControl !== 'undefined' ? (navigator.globalPrivacyControl ? '有効' : '無効') : '未対応';
     this.setState(s=>({net:{...s.net, tracking:{loading:false, text:'', color:'oklch(0.22 0.01 40)', rows:[
-      {label:'Do Not Track', value:dnt},
-      {label:'Global Privacy Control', value:gpc},
-    ]}}}));
+      {label:'追跡しないで（Do Not Track）', value:dnt},
+      {label:'売らないで（GPC）', value:gpc},
+    ], note:'どちらも「おことわり」を伝えるだけの信号です。従う義務はサイト側にないため、これが有効でも追跡されないことの保証にはなりません。', noteColor:'oklch(0.5 0.01 40)'}}}));
   }
   _checkGeoPerm(){
     if(!navigator.permissions){
-      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'このブラウザは非対応', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'このブラウザでは確認できません', color:'oklch(0.5 0.01 40)', rows:[]}}}));
       return;
     }
     navigator.permissions.query({name:'geolocation'}).then(p=>{
-      const map = {granted:['許可済み','oklch(0.5 0.1 150)'], denied:['拒否','oklch(0.5 0.18 25)'], prompt:['未確認（初回に確認）','oklch(0.5 0.01 40)']};
+      const map = {granted:['渡す設定になっています','oklch(0.55 0.13 75)'], denied:['渡さない設定です','oklch(0.5 0.1 150)'], prompt:['まだ聞かれていません','oklch(0.5 0.01 40)']};
       const hit = map[p.state] || ['不明','oklch(0.5 0.01 40)'];
       this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:hit[0], color:hit[1], rows:[],
-        note:'ネイティブ版ではCoreLocationの認可レベル（使用中のみ／常に許可／なし）にそのまま置き換わります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+        note:'これはこのページに対する許可です。アプリごとの位置情報の許可は、iPhoneの「設定 → プライバシーとセキュリティ → 位置情報サービス」で確認・変更できます。', noteColor:'oklch(0.5 0.01 40)'}}}));
     }).catch(()=>{
-      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
     });
   }
   _checkAttPerm(){
     this.setState(s=>({net:{...s.net, attperm:{
-      loading:false, text:'ネイティブ版で実装予定', color:'oklch(0.5 0.01 40)', rows:[],
-      note:'ATTrackingManagerで実際の許可状態（許可／拒否／未確認）を取得します。ブラウザには相当するAPIがないため、ここではプレースホルダーです。', noteColor:'oklch(0.5 0.01 40)',
+      loading:false, text:'このページからは確認できません', color:'oklch(0.5 0.01 40)', rows:[],
+      note:'端末側の設定なので、Webページから読み取る手段がありません。iPhoneの「設定 → プライバシーとセキュリティ → トラッキング」で確認できます。ここをオフにしておくと、アプリごとの許可を求める仕組みそのものを止められます（チェックリストにも項目として入れてあります）。', noteColor:'oklch(0.5 0.01 40)',
     }}}));
   }
   async _checkVpnStatus(ipInfoPromise, dnsInfoPromise){
@@ -871,13 +891,6 @@ class Component extends DCLogic {
         text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
         warp = obj.warp==='on' || obj.warp==='plus';
       }catch(e){}
-      // Mullvadは「いまMullvad経由か」を自社サーバー側で答えるエンドポイントを
-      // 公開している。到達できれば組織名からの推定ではなく確定判定になる。
-      let mullvad = null;
-      try{
-        const rm = await fetch('https://am.i.mullvad.net/json',{cache:'no-store'});
-        mullvad = await rm.json();
-      }catch(e){}
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
       const dnsInfo = await Promise.resolve(dnsInfoPromise).catch(()=>null);
       const org = (ipInfo && ipInfo.org) || '';
@@ -888,38 +901,26 @@ class Component extends DCLogic {
       const sameNetDns = !!(dnsInfo && dnsInfo.sameNet);
       let provider = null;
       for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(orgForMatch)){ provider = name; break; } }
-      const onMullvad = !!(mullvad && mullvad.mullvad_exit_ip === true);
       const isDc = !!(orgForMatch && DATACENTER_ORG_RE.test(orgForMatch));
       let text, color;
-      if(onMullvad){
-        const host = mullvad.mullvad_exit_ip_hostname || '';
-        text = 'Mullvad VPN 経由（確定）' + (host ? '：' + host : '');
-        color = 'oklch(0.5 0.1 150)';
-      }
-      else if(provider){ text = '推定：'+provider+' 経由'; color = 'oklch(0.5 0.1 150)'; }
-      else if(warp){ text = '推定：Cloudflare WARP 経由'; color = 'oklch(0.5 0.1 150)'; }
-      else if(isDc){ text = 'データセンター経由（VPNの可能性が高い・事業者は特定できません）'; color = 'oklch(0.5 0.1 150)'; }
-      else if(sameNetDns){ text = 'VPN経由の可能性が高い（DNSが出口と同一ネットワーク）'; color = 'oklch(0.5 0.1 150)'; }
-      else if(org){ text = '一般ISP回線に見えます（VPN未使用の可能性）'; color = 'oklch(0.55 0.13 75)'; }
-      else { text = '判定材料が得られませんでした'; color = 'oklch(0.5 0.01 40)'; }
-      const rows = [{label:'出口IPの登録組織名', value: org || (geoOrg ? geoOrg+'（リゾルバ側の表記）' : '—')}];
-      if(mullvad && typeof mullvad.mullvad_exit_ip !== 'undefined'){
-        rows.push({label:'Mullvad の自己申告', value: onMullvad ? '経由している' : '経由していない'});
-      } else {
-        rows.push({label:'Mullvad の自己申告', value: '確認できませんでした（CORS制限の可能性）'});
-      }
-      rows.push({label:'DNSリゾルバとの関係', value: sameNetDns ? '出口と同一ネットワーク' : '—'});
-      rows.push({label:'Cloudflare WARP', value: warp ? '有効' : '無効'});
+      if(provider){ text = 'VPNを通っています（'+provider+'）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(warp){ text = 'VPNを通っています（Cloudflare WARP）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(isDc){ text = 'VPNを通っている可能性が高い（会社名までは分かりません）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(sameNetDns){ text = 'VPNを通っている可能性が高い（会社名までは分かりません）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(org){ text = '自宅などの回線に見えます（VPNを通っていない可能性）'; color = 'oklch(0.55 0.13 75)'; }
+      else { text = '判断できる材料が集まりませんでした'; color = 'oklch(0.5 0.01 40)'; }
+      const rows = [
+        {label:'出口アドレスの持ち主', value: org || (geoOrg ? geoOrg : '—')},
+        {label:'DNSサーバーとの関係', value: sameNetDns ? '出口と同じネットワーク上' : '—'},
+        {label:'Cloudflare WARP', value: warp ? '使用中' : '不使用'},
+      ];
       this.setState(s=>({net:{...s.net, vpnstatus:{
         loading:false, text, color, rows,
-        note: (onMullvad
-          ? 'Mullvadのサーバー自身が「Mullvad経由」と答えているため、これは推定ではなく確定です。'
-          : '出口IPの登録組織名からの推定です。Mullvadのように出口を汎用ホスティング事業者に置いている場合、組織名に事業者名は現れません。')
-          + ' この項目のためにMullvadへ1回問い合わせます（自分のIPをMullvadに見せることになりますが、Mullvad利用中なら新たな露出はありません）。他社の同等エンドポイントは、使っていない事業者に自分のIPを渡すことになるため呼んでいません。ネイティブ版ではNWPathMonitorで接続の有無自体を確定判定します。',
+        note: '出口アドレスの持ち主の名前から判断しています。VPN会社の名前がそのまま登録されていれば会社名まで分かりますが、多くのVPNはサーバーを借りて運用しているため、貸主であるデータセンターの名前しか出ません。その場合「VPNは通っているが、どこの会社かは分からない」という結果になります。ブラウザからVPNの有無を100%確実に判定する方法はありません。',
         noteColor:'oklch(0.5 0.01 40)',
       }}}));
     }catch(e){
-      this.setState(s=>({net:{...s.net, vpnstatus:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, vpnstatus:{loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
     }
   }
 
@@ -929,12 +930,16 @@ class Component extends DCLogic {
     const isOnboarding = !s.picked;
     const showMain = !isOnboarding;
 
-    const onboardingApps = DATA.apps.map(a=>({
+    const mkOnboardingApp = a => ({
       id:a.id, name:a.name, count:a.items.length,
       checkColor: s.tempSel[a.id] ? 'oklch(0.5 0.18 25)' : 'transparent',
       checkBg: s.tempSel[a.id] ? 'oklch(0.95 0.05 25)' : 'transparent',
       toggle: () => this.toggleTemp(a.id),
-    }));
+    });
+    const onboardingGroups = CATEGORIES.map(cat=>({
+      id:cat.id, label:cat.label, hint:cat.hint,
+      apps: DATA.apps.filter(a=>(a.category||'app')===cat.id).map(mkOnboardingApp),
+    })).filter(g=>g.apps.length>0);
     const onboardingDisabled = !Object.values(s.tempSel).some(Boolean);
 
     let appGroups = [], nHigh=0, nMed=0, nLow=0, nDone=0, totalItems=0, nNew=0;
@@ -952,7 +957,10 @@ class Component extends DCLogic {
       nDone = totalItems - remaining.length;
       nNew = items.filter(i=>!s.seen.includes(i.id)).length;
 
-      const filt = it => s.tab==='all' ? true : s.tab==='todo' ? !s.done.includes(it.id) : !s.seen.includes(it.id);
+      const filt = it => s.tab==='all' ? true
+        : s.tab==='todo' ? !s.done.includes(it.id)
+        : s.tab==='done' ? s.done.includes(it.id)
+        : !s.seen.includes(it.id);
 
       appGroups = apps.map(a=>{
         const list = a.items.filter(i=>allowedSev.includes(i.severity)).filter(filt);
@@ -992,16 +1000,16 @@ class Component extends DCLogic {
       }));
 
       const netDefs = [
-        {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'グローバルIPアドレスと、それに紐づくISP・おおよその所在地。VPN接続下では接続先のものが表示されるはずです。'},
-        {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6が割り当てられている場合の詳細。VPNがIPv6に未対応の場合にかぎり、この経路が実IPを示すことがあります。'},
-        {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'名前解決を実際に行ったDNSリゾルバを確認します。VPN経由ならVPN事業者のリゾルバが出るはずで、ISPのものが出ればDNSが漏れています。'},
-        {id:'route', title:'出口ノード（経路の目安）', desc:'ブラウザからは本来のtracerouteは実行できません。到達しているネットワーク結節点を代替指標として表示します。'},
-        {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCはブラウザ内蔵のリアルタイム通信機能（ビデオ通話などで使われる）です。相手と直接つなぐために、ブラウザがOSに問い合わせて自分のIPアドレスを列挙します。この列挙がVPNを迂回して実IPを出してしまうことがあり、それを検査します。上のIPv4診断と一致していれば漏洩はありません。'},
-        {id:'tz', title:'タイムゾーン整合性', desc:'ブラウザが認識している時刻帯。IPの「国」と大きく異なる場合は要注意。'},
-        {id:'tracking', title:'トラッキング防止シグナル', desc:'ブラウザが送信しているDo Not Track / Global Privacy Controlの状態。'},
-        {id:'geoperm', title:'位置情報の許可', desc:'ブラウザの位置情報アクセス許可状態。'},
-        {id:'attperm', title:'トラッキング許可（App Tracking Transparency）', desc:'アプリ間トラッキングの許可状態。'},
-        {id:'vpnstatus', title:'VPN接続状態', desc:'Mullvadは自社の確認エンドポイントで確定判定します。それ以外は出口IPの登録組織名から推定します。'},
+        {id:'ipv4', title:'外から見えているアドレス', desc:'いまインターネット側から見えている、あなたの番号（IPアドレス）と、その番号の持ち主・おおよその場所です。VPNを使っていれば、自宅ではなくVPNの接続先が表示されます。'},
+        {id:'ipv6', title:'外から見えているアドレス（新方式）', desc:'IPv6という新しい方式の番号です。持っていること自体はふつうのことです。VPNがこの方式に未対応の場合にかぎり、こちら側から自宅の回線が見えてしまうことがあります。'},
+        {id:'dns', title:'見たサイト名の漏れ確認', desc:'サイト名から接続先を調べる担当のサーバー（DNS）を確認します。ここが契約している回線会社のものだと、VPNを使っていても「どのサイトを見たか」は回線会社に伝わります。'},
+        {id:'route', title:'通信が外に出ている場所', desc:'あなたの通信が最後にどこを通って外に出ているかの手がかりです。途中の経路を全部たどることはブラウザからはできないため、到達している拠点を目安として表示します。'},
+        {id:'webrtc', title:'通話機能からの住所漏れ確認', desc:'ブラウザには、ビデオ通話のために自分の番号を相手に直接伝える機能（WebRTC）があります。この機能がVPNを飛び越えて自宅の番号を伝えてしまうことがあり、それを確認します。上の「外から見えているアドレス」と同じ番号なら漏れていません。'},
+        {id:'tz', title:'時計と場所の食い違い', desc:'端末に設定されている時刻帯と、アドレスから推定される国がずれていないかを見ます。ずれていると、VPNで場所を隠していても「本当は別の国にいる」と推測される材料になります。'},
+        {id:'tracking', title:'追跡おことわりの意思表示', desc:'「行動を追跡しないでほしい」という信号をブラウザが送っているかどうかです。送っても、従う義務はサイト側にありません。'},
+        {id:'geoperm', title:'位置情報を渡す設定', desc:'このページに現在地を渡す許可を出しているかどうかです。'},
+        {id:'attperm', title:'アプリ間の追跡許可', desc:'アプリがあなたを他社のアプリまで追いかけてよいか、という端末側の設定です。'},
+        {id:'vpnstatus', title:'VPNを通っているか', desc:'出口アドレスの持ち主などから、VPNを経由しているかを判断します。'},
       ];
       netChecksOut = netDefs.map(d=>{
         const r = (s.net && s.net[d.id]) || {};
@@ -1056,6 +1064,7 @@ class Component extends DCLogic {
     const subTabs = [
       {key:'todo', label:'未対応', count: showMain ? (totalItems-nDone) : 0},
       {key:'new', label:'新着', count: nNew},
+      {key:'done', label:'済', count: nDone},
       {key:'all', label:'すべて', count: totalItems},
     ].map(t=>({
       label:t.label, count:t.count, click: ()=>this.setTab(t.key),
@@ -1086,7 +1095,7 @@ class Component extends DCLogic {
       saveAccount: ()=>this.saveAccount(),
 
       isOnboarding, showMain,
-      onboardingApps, onboardingDisabled,
+      onboardingGroups, onboardingDisabled,
       allTempSelectedLabel: DATA.apps.every(a=>s.tempSel[a.id]) ? '選択解除' : 'すべて選択',
       toggleAllTemp: ()=>this.toggleAllTemp(),
       onboardingBtnBg: onboardingDisabled ? 'oklch(0.9 0.008 80)' : 'oklch(0.22 0.01 40)',
@@ -1117,7 +1126,7 @@ class Component extends DCLogic {
       nHigh, nMed, nLow, doneFrac: nDone+'/'+totalItems,
       subTabs, appGroups,
       checkIsEmpty: showMain && appGroups.length===0,
-      checkEmptyMessage: s.tab==='todo' ? '未対応の項目はありません。' : s.tab==='new' ? '新着はありません。' : '対象がありません。',
+      checkEmptyMessage: s.tab==='todo' ? '未対応の項目はありません。' : s.tab==='new' ? '新着はありません。' : s.tab==='done' ? '対応済みの項目はまだありません。' : '対象がありません。',
       resetPicked: ()=>this.resetPicked(),
 
       accountCards, accountsEmpty: showMain && accountCards.length===0,

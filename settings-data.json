@@ -1,10 +1,11 @@
 {
-  "version": "2026-07-29c",
+  "version": "2026-07-30a",
   "apps": [
     {
       "id": "line",
       "name": "LINE",
       "icon": "L",
+      "category": "app",
       "items": [
         {
           "id": "line-talkroom-info",
@@ -76,6 +77,7 @@
       "id": "google",
       "name": "Google / Gemini",
       "icon": "G",
+      "category": "service",
       "items": [
         {
           "id": "google-gemini-activity",
@@ -107,6 +109,7 @@
       "id": "ios",
       "name": "iOS 26",
       "icon": "iOS",
+      "category": "os",
       "items": [
         {
           "id": "ios-reduce-transparency",
@@ -154,6 +157,7 @@
       "id": "meta",
       "name": "Instagram / Facebook",
       "icon": "Meta",
+      "category": "app",
       "items": [
         {
           "id": "meta-muse-image-optout",
@@ -185,6 +189,7 @@
       "id": "x",
       "name": "X (旧Twitter)",
       "icon": "X",
+      "category": "app",
       "items": [
         {
           "id": "x-grok-datasharing",
@@ -209,6 +214,7 @@
       "id": "tiktok",
       "name": "TikTok",
       "icon": "TT",
+      "category": "app",
       "items": [
         {
           "id": "tiktok-personalized-ads",
@@ -240,6 +246,7 @@
       "id": "amazon",
       "name": "Amazon / Alexa",
       "icon": "AMZ",
+      "category": "service",
       "items": [
         {
           "id": "amazon-alexa-voice-history",
@@ -263,6 +270,7 @@
       "id": "openai",
       "name": "ChatGPT / OpenAI",
       "icon": "GPT",
+      "category": "service",
       "items": [
         {
           "id": "openai-improve-model-off",
@@ -286,6 +294,7 @@
       "id": "github",
       "name": "GitHub",
       "icon": "GH",
+      "category": "service",
       "items": [
         {
           "id": "github-2fa",
@@ -317,6 +326,7 @@
       "id": "discord",
       "name": "Discord",
       "icon": "DC",
+      "category": "app",
       "items": [
         {
           "id": "discord-personalize-off",
@@ -340,6 +350,7 @@
       "id": "whatsapp",
       "name": "WhatsApp",
       "icon": "WA",
+      "category": "app",
       "items": [
         {
           "id": "whatsapp-last-seen",
@@ -371,6 +382,7 @@
       "id": "yahoo",
       "name": "Yahoo! JAPAN",
       "icon": "Y",
+      "category": "service",
       "items": [
         {
           "id": "yahoo-line-link",
@@ -394,6 +406,7 @@
       "id": "paypay",
       "name": "PayPay",
       "icon": "PP",
+      "category": "app",
       "items": [
         {
           "id": "paypay-external-link",
@@ -415,8 +428,9 @@
     },
     {
       "id": "vpn",
-      "name": "VPN（Mullvad等）",
+      "name": "VPN",
       "icon": "VPN",
+      "category": "app",
       "items": [
         {
           "id": "vpn-killswitch",
