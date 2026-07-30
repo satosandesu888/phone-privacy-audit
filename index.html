@@ -454,7 +454,11 @@ const VPN_ORG_PATTERNS = [
 ];
 // VPN事業者が出口に使いがちなホスティング事業者。事業者名までは絞れないが、
 // 一般家庭回線ではないことは分かる。
-const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\b|hetzner|choopa|vultr|digitalocean|linode|amazon|google cloud|microsoft|oracle|cogent|psychz|quickpacket|zenlayer|servers\.com|packethub|globalconnect|clouvider|pathnet/i;
+const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\b|hetzner|choopa|vultr|digitalocean|linode|amazon|google cloud|microsoft|oracle|cogent|psychz|quickpacket|zenlayer|servers\.com|packethub|globalconnect|clouvider|pathnet|owl limited|estnoc|iregister|netnod|qnax|rockenstein|tsunet|wildcard|creanova|ergonet|fiberby|glesys|hostroyale|iventure|layer7|melbicom|mainserver|comnet|dedicated\.com|hostuniversal|servinga|serverius|vpsville|xenyth|zappiehost|misaka|hivelocity|performive|velia|combahton|greenhost|init7|obenetwork|portlane|privex|salyut|solarcom|stackpath|tilaa|worldstream/i;
+// 診断は毎回いまの回線の値を見たいので、URLを毎回変えて中間キャッシュを避ける。
+// cache:'no-store' はブラウザキャッシュにしか効かず、CDNやAPI側の
+// エッジキャッシュには効かないことがある。
+const bust = url => url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
 // 配信元。同じ場所に置いた settings-data.json を起動時に取得し、version が異なれば差し替える。
 // 別ホストで配信する場合は絶対URLを書いてgit pushすればよい（空文字なら内蔵データのみ・自動更新なし）。
 const REMOTE_URL = './settings-data.json';
@@ -611,48 +615,60 @@ class Component extends DCLogic {
     // WebRTC比較とVPN推定はIPv4の結果に依存する。待たずに判定すると誤報になるため、
     // Promiseを渡して各自で待たせる。
     const ipInfo = this._checkIPv4();
-    this._checkIPv6(); this._checkDNS(); this._checkRoute(); this._checkTimezone(); this._checkTracking();
+    this._checkIPv6(); this._checkDNS(ipInfo); this._checkRoute(); this._checkTimezone(); this._checkTracking();
     this._checkGeoPerm(); this._checkAttPerm();
     this._checkWebRTC(ipInfo); this._checkVpnStatus(ipInfo);
   }
   async _checkIPv4(){
+    // まずIPv4専用エンドポイントでアドレスを確定させ、そのうえで詳細を引く。
+    // ipwho.is に素で当てると「接続してきたIP」が返るため、端末がIPv6で
+    // 接続しているとIPv6が返り、IPv4欄にIPv6が出る。WebRTC比較の基準も
+    // 狂うので、ここは必ずIPv4専用の api.ipify.org を先に通す。
+    let ip = null;
     try{
-      const r = await fetch('https://ipwho.is/', {cache:'no-store'});
+      const r = await fetch(bust('https://api.ipify.org?format=json'),{cache:'no-store'});
       const d = await r.json();
-      if(!d || d.success===false) throw new Error('lookup failed');
-      const conn = d.connection || {};
-      this.setState(s=>({net:{...s.net, ipv4:{
-        loading:false, text:d.ip, color:'oklch(0.22 0.01 40)',
-        rows:[
-          {label:'ISP', value: conn.isp || conn.org || '—'},
-          {label:'ホスト名', value:'—'},
-          {label:'国', value: d.country || '—'},
-          {label:'都道府県', value: d.region || '—'},
-          {label:'市区町村', value: d.city || '—'},
-          {label:'郵便番号', value: d.postal || '—'},
-        ],
-        note:'VPN接続中なら、接続先サーバーのISP・所在地が表示されるはず', noteColor:'oklch(0.5 0.01 40)',
-      }}}));
-      return {ip:d.ip, org: conn.isp || conn.org || ''};
-    }catch(e){
-      try{
-        const r2 = await fetch('https://api.ipify.org?format=json',{cache:'no-store'});
-        const d2 = await r2.json();
-        this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:d2.ip, color:'oklch(0.22 0.01 40)', rows:[], note:'詳細情報（ISP・所在地）の取得には失敗しました', noteColor:'oklch(0.5 0.18 25)'}}}));
-        return {ip:d2.ip, org:''};
-      }catch(e2){
-        this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:'取得失敗', color:'oklch(0.5 0.18 25)', rows:[]}}}));
-        return null;
-      }
+      if(d && d.ip) ip = d.ip;
+    }catch(e){}
+    if(!ip){
+      this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
+        note:'IPv4専用エンドポイントに到達できませんでした。IPv4を持たない接続かもしれません。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      return null;
     }
+    const looksV6 = ip.includes(':');
+    let rows = [], org = '', country = '';
+    try{
+      const r2 = await fetch(bust('https://ipwho.is/'+ip),{cache:'no-store'});
+      const d2 = await r2.json();
+      if(d2 && d2.success!==false){
+        const conn = d2.connection || {};
+        org = conn.isp || conn.org || '';
+        country = d2.country || '';
+        rows = [
+          {label:'ISP / 組織', value: org || '—'},
+          {label:'国', value: country || '—'},
+          {label:'都道府県', value: d2.region || '—'},
+          {label:'市区町村', value: d2.city || '—'},
+          {label:'郵便番号', value: d2.postal || '—'},
+        ];
+      }
+    }catch(e){}
+    this.setState(s=>({net:{...s.net, ipv4:{
+      loading:false, text: ip, color:'oklch(0.22 0.01 40)', rows,
+      note: looksV6
+        ? '⚠ IPv4専用エンドポイントがIPv6を返しました。想定外の状態です。'
+        : (rows.length ? 'VPN接続中なら、接続先サーバーのISP・所在地が表示されるはず' : '詳細情報（ISP・所在地）の取得には失敗しました'),
+      noteColor: looksV6 ? 'oklch(0.5 0.18 25)' : 'oklch(0.5 0.01 40)',
+    }}}));
+    return {ip, org, country, looksV6};
   }
   async _checkIPv6(){
     try{
-      const r = await fetch('https://api6.ipify.org?format=json',{cache:'no-store'});
+      const r = await fetch(bust('https://api6.ipify.org?format=json'),{cache:'no-store'});
       const d = await r.json();
       let rows = [];
       try{
-        const r2 = await fetch('https://ipwho.is/'+d.ip,{cache:'no-store'});
+        const r2 = await fetch(bust('https://ipwho.is/'+d.ip),{cache:'no-store'});
         const d2 = await r2.json();
         if(d2 && d2.success!==false){
           const conn = d2.connection || {};
@@ -669,27 +685,41 @@ class Component extends DCLogic {
       this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:'割り当てなし（安全）', color:'oklch(0.5 0.1 150)', rows:[]}}}));
     }
   }
-  async _checkDNS(){
+  async _checkDNS(ipInfoPromise){
+    // dnsleaktest.com のAPIは公開されておらず、ブラウザからは叩けない。
+    // 代わりに ip-api の EDNS エンドポイントを使う。ここは自前の権威DNSで
+    // 応答するため、「実際に問い合わせを行ったリゾルバ」を返してくれる。
     try{
-      const r = await fetch('https://dnsleaktest.com/api/v1/nameservers',{cache:'no-store'});
+      const r = await fetch(bust('https://edns.ip-api.com/json'),{cache:'no-store'});
       const d = await r.json();
-      const servers = d.nameservers || [];
-      if(!servers.length){ this.setState(s=>({net:{...s.net, dns:{loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}})); return; }
-      const ispList = ['comcast','verizon','at&t','charter','cox'];
-      const rows = servers.map(sv=>{
-        const label = sv.name || sv.ip || '?';
-        const isIsp = ispList.some(isp=>label.toLowerCase().includes(isp));
-        return {label, value: isIsp ? '⚠ ISP DNSの可能性' : 'プライベート/VPN DNS'};
-      });
-      const hasIsp = servers.some(sv=>ispList.some(isp=>(sv.name||sv.ip||'').toLowerCase().includes(isp)));
-      this.setState(s=>({net:{...s.net, dns:{loading:false, text: servers.length+'件のリゾルバを検出', color: hasIsp?'oklch(0.5 0.18 25)':'oklch(0.5 0.1 150)', rows, note: hasIsp?'⚠ ISP DNSが混在しています':'ISP DNSは検出されませんでした', noteColor: hasIsp?'oklch(0.5 0.18 25)':'oklch(0.5 0.1 150)'}}}));
+      const dns = (d && d.dns) || {};
+      if(!dns.ip) throw new Error('no resolver info');
+      const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
+      const exitCountry = (ipInfo && ipInfo.country) || '';
+      const geo = dns.geo || '';
+      const match = !!(exitCountry && geo.toLowerCase().includes(exitCountry.toLowerCase()));
+      const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)';
+      this.setState(s=>({net:{...s.net, dns:{
+        loading:false, text: dns.ip, color: match ? green : amber,
+        rows:[
+          {label:'問い合わせ元リゾルバ', value: dns.ip},
+          {label:'リゾルバの所在', value: geo || '—'},
+          {label:'出口IPの国', value: exitCountry || '—'},
+        ],
+        note: (match
+          ? 'リゾルバの所在が出口IPの国と一致しています。VPN事業者のDNSを使えている可能性が高いです。'
+          : 'リゾルバの所在が出口IPの国と一致しません。ISPのDNSに漏れている可能性があります。')
+          + ' ここで分かるのは実際に問い合わせを行った1つのリゾルバだけです。dnsleaktest.com の拡張テストのように全リゾルバを列挙するには権威DNSサーバー側でログを取る必要があり、静的ページだけでは実施できません。網羅的に見たい場合はチェックリストの項目から dnsleaktest.com を直接開いてください。',
+        noteColor: match ? green : amber,
+      }}}));
     }catch(e){
-      this.setState(s=>({net:{...s.net, dns:{loading:false, text:'DNS情報取得不可（CORS制限の場合あり）', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this.setState(s=>({net:{...s.net, dns:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
+        note:'リゾルバ判定用エンドポイントに到達できませんでした（CORSまたはネットワーク制限）。dnsleaktest.com を直接開いて確認してください。', noteColor:'oklch(0.5 0.01 40)'}}}));
     }
   }
   async _checkRoute(){
     try{
-      const r = await fetch('https://www.cloudflare.com/cdn-cgi/trace',{cache:'no-store'});
+      const r = await fetch(bust('https://www.cloudflare.com/cdn-cgi/trace'),{cache:'no-store'});
       const text = await r.text();
       const obj = {};
       text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
@@ -795,29 +825,50 @@ class Component extends DCLogic {
     try{
       let warp = false;
       try{
-        const r = await fetch('https://www.cloudflare.com/cdn-cgi/trace',{cache:'no-store'});
+        const r = await fetch(bust('https://www.cloudflare.com/cdn-cgi/trace'),{cache:'no-store'});
         const text = await r.text();
         const obj = {};
         text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
         warp = obj.warp==='on' || obj.warp==='plus';
       }catch(e){}
+      // Mullvadは「いまMullvad経由か」を自社サーバー側で答えるエンドポイントを
+      // 公開している。到達できれば組織名からの推定ではなく確定判定になる。
+      let mullvad = null;
+      try{
+        const rm = await fetch(bust('https://am.i.mullvad.net/json'),{cache:'no-store'});
+        mullvad = await rm.json();
+      }catch(e){}
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
       const org = (ipInfo && ipInfo.org) || '';
       let provider = null;
       for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(org)){ provider = name; break; } }
+      const onMullvad = !!(mullvad && mullvad.mullvad_exit_ip === true);
+      const isDc = !!(org && DATACENTER_ORG_RE.test(org));
       let text, color;
-      if(provider){ text = '推定：'+provider+' 経由'; color = 'oklch(0.5 0.1 150)'; }
+      if(onMullvad){
+        const host = mullvad.mullvad_exit_ip_hostname || '';
+        text = 'Mullvad VPN 経由（確定）' + (host ? '：' + host : '');
+        color = 'oklch(0.5 0.1 150)';
+      }
+      else if(provider){ text = '推定：'+provider+' 経由'; color = 'oklch(0.5 0.1 150)'; }
       else if(warp){ text = '推定：Cloudflare WARP 経由'; color = 'oklch(0.5 0.1 150)'; }
-      else if(org && DATACENTER_ORG_RE.test(org)){ text = 'データセンター経由（事業者は特定できません）'; color = 'oklch(0.5 0.1 150)'; }
+      else if(isDc){ text = 'データセンター経由（事業者は特定できません）'; color = 'oklch(0.5 0.1 150)'; }
       else if(org){ text = '一般ISP回線に見えます（VPN未使用の可能性）'; color = 'oklch(0.55 0.13 75)'; }
       else { text = '判定材料が得られませんでした'; color = 'oklch(0.5 0.01 40)'; }
+      const rows = [{label:'出口IPの登録組織名', value: org || '—'}];
+      if(mullvad && typeof mullvad.mullvad_exit_ip !== 'undefined'){
+        rows.push({label:'Mullvad の自己申告', value: onMullvad ? '経由している' : '経由していない'});
+      } else {
+        rows.push({label:'Mullvad の自己申告', value: '確認できませんでした'});
+      }
+      rows.push({label:'Cloudflare WARP', value: warp ? '有効' : '無効'});
       this.setState(s=>({net:{...s.net, vpnstatus:{
-        loading:false, text, color,
-        rows:[
-          {label:'出口IPの登録組織名', value: org || '—'},
-          {label:'Cloudflare WARP', value: warp ? '有効' : '無効'},
-        ],
-        note:'出口IPの登録組織名から推定しています。組織名に事業者名が入っていれば事業者まで分かりますが、汎用ホスティングを出口にしている事業者では「データセンター経由」までしか分かりません。ブラウザから接続の有無を確実に判定する手段はなく、ネイティブ版ではNWPathMonitorで確定判定します。', noteColor:'oklch(0.5 0.01 40)',
+        loading:false, text, color, rows,
+        note: (onMullvad
+          ? 'Mullvadのサーバー自身が「Mullvad経由」と答えているため、これは推定ではなく確定です。'
+          : '出口IPの登録組織名からの推定です。Mullvadのように出口を汎用ホスティング事業者に置いている場合、組織名に事業者名は現れません。')
+          + ' この項目のためにMullvadへ1回問い合わせます（自分のIPをMullvadに見せることになりますが、Mullvad利用中なら新たな露出はありません）。他社の同等エンドポイントは、使っていない事業者に自分のIPを渡すことになるため呼んでいません。ネイティブ版ではNWPathMonitorで接続の有無自体を確定判定します。',
+        noteColor:'oklch(0.5 0.01 40)',
       }}}));
     }catch(e){
       this.setState(s=>({net:{...s.net, vpnstatus:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
@@ -895,14 +946,14 @@ class Component extends DCLogic {
       const netDefs = [
         {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'グローバルIPアドレスと、それに紐づくISP・おおよその所在地。VPN接続下では接続先のものが表示されるはずです。'},
         {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6が割り当てられている場合の詳細。VPNがIPv6に未対応の場合にかぎり、この経路が実IPを示すことがあります。'},
-        {id:'dns', title:'DNSサーバー', desc:'DNS解決に使われているサーバー一覧。VPN経由ならVPN事業者のDNSが表示されるはず。'},
+        {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'名前解決を実際に行ったDNSリゾルバを確認します。VPN経由ならVPN事業者のリゾルバが出るはずで、ISPのものが出ればDNSが漏れています。'},
         {id:'route', title:'出口ノード（経路の目安）', desc:'ブラウザからは本来のtracerouteは実行できません。到達しているネットワーク結節点を代替指標として表示します。'},
         {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCはブラウザ内蔵のリアルタイム通信機能（ビデオ通話などで使われる）です。相手と直接つなぐために、ブラウザがOSに問い合わせて自分のIPアドレスを列挙します。この列挙がVPNを迂回して実IPを出してしまうことがあり、それを検査します。上のIPv4診断と一致していれば漏洩はありません。'},
         {id:'tz', title:'タイムゾーン整合性', desc:'ブラウザが認識している時刻帯。IPの「国」と大きく異なる場合は要注意。'},
         {id:'tracking', title:'トラッキング防止シグナル', desc:'ブラウザが送信しているDo Not Track / Global Privacy Controlの状態。'},
         {id:'geoperm', title:'位置情報の許可', desc:'ブラウザの位置情報アクセス許可状態。'},
         {id:'attperm', title:'トラッキング許可（App Tracking Transparency）', desc:'アプリ間トラッキングの許可状態。'},
-        {id:'vpnstatus', title:'VPN接続状態', desc:'出口IPの登録組織名から、VPN経由かどうか、どの事業者かを推定します。'},
+        {id:'vpnstatus', title:'VPN接続状態', desc:'Mullvadは自社の確認エンドポイントで確定判定します。それ以外は出口IPの登録組織名から推定します。'},
       ];
       netChecksOut = netDefs.map(d=>{
         const r = (s.net && s.net[d.id]) || {};
