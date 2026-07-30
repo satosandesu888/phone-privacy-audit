@@ -34,7 +34,6 @@ input,select,textarea{font-family:inherit}
       <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">CONFIG</div>
       <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 14px">設定</h3>
       <div style="display:flex;justify-content:space-between;font:400 12.5px/1.7 'IBM Plex Mono',monospace;padding:9px 0;border-bottom:1px dotted oklch(0.7 0.01 60);margin-bottom:16px"><span style="color:oklch(0.45 0.01 40)">データバージョン</span><b style="font-weight:600">{{ dataVersion }}</b></div>
-      <p style="font:400 12px/1.7 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">監査レベルと対象の変更は、画面上部の「監査レベル、対象アプリ変更」から行います。</p>
       <button onClick="{{ closeSheet }}" style="width:100%;margin-top:8px;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">閉じる</button>
     </sc-if>
 
@@ -77,7 +76,6 @@ input,select,textarea{font-family:inherit}
 <sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
 <div style="padding:34px 0 10px">
   <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.14em;margin-bottom:8px">INTAKE FORM</div>
-  <h2 style="font:700 24px/1.5 'Source Serif 4',serif;margin:0 0 12px">知らぬ間に追加される項目を、<br>定期的に見直す。</h2>
   <p style="font:400 13.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 22px">端末に入っているアプリを自動で読み取ることはできません。使っているものを選んでください。</p>
   <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
     <div onClick="{{ toggleAllTemp }}" style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:3px;cursor:pointer">{{ allTempSelectedLabel }}</div>
@@ -101,19 +99,12 @@ input,select,textarea{font-family:inherit}
     </sc-for>
   </div>
   <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">監査レベル</div>
-  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+  <div style="display:flex;gap:6px;margin-bottom:8px">
     <sc-for list="{{ levelOptions }}" as="lv" hint-placeholder-count="3">
-      <div onClick="{{ lv.click }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid {{ lv.borderColor }};border-radius:7px;background:{{ lv.bg }};cursor:pointer">
-        <div style="width:18px;height:18px;flex:none;border:1.5px solid {{ lv.dotBorder }};border-radius:50%;display:grid;place-items:center">
-          <sc-if value="{{ lv.selected }}"><div style="width:9px;height:9px;border-radius:50%;background:oklch(0.5 0.18 25)"></div></sc-if>
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font:600 13.5px 'Source Serif 4',serif">{{ lv.label }}</div>
-          <div style="font:400 11px/1.5 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-top:2px">{{ lv.desc }}</div>
-        </div>
-      </div>
+      <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
     </sc-for>
   </div>
+  <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:22px">{{ tempLevelDesc }}</div>
   <button onClick="{{ startCheck }}" disabled="{{ onboardingDisabled }}" style="width:100%;padding:14px;border-radius:8px;border:1px solid oklch(0.22 0.01 40);background:{{ onboardingBtnBg }};color:{{ onboardingBtnColor }};font:700 14px 'IBM Plex Mono',monospace;letter-spacing:.03em;cursor:pointer">確認を開始</button>
   <p style="text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:20px">データは端末内にのみ保存され、外部へ送信されません。</p>
 </div>
@@ -128,7 +119,7 @@ input,select,textarea{font-family:inherit}
   <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 2px 12px">
     <div style="font:700 14px 'Source Serif 4',serif;letter-spacing:.01em">iPhone<br>個人情報保護監査アプリ</div>
     <div style="display:flex;gap:8px">
-      <div onClick="{{ resetPicked }}" style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid oklch(0.78 0.01 60);border-radius:6px;background:oklch(0.99 0.005 85);color:oklch(0.4 0.01 40);font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;flex:none">監査レベル、対象アプリ変更</div>
+      <div onClick="{{ resetPicked }}" style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid oklch(0.78 0.01 60);border-radius:6px;background:oklch(0.99 0.005 85);color:oklch(0.4 0.01 40);font:600 11px 'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;flex:none">監査レベル・アプリ変更</div>
       <div onClick="{{ openSettings }}" style="width:32px;height:32px;flex:none;border:1px solid oklch(0.78 0.01 60);border-radius:6px;display:grid;place-items:center;cursor:pointer;background:oklch(0.99 0.005 85)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.45 0.01 40)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-label="設定"><circle cx="12" cy="12" r="3.1"></circle><path d="M19.5 12c0-.5-.05-1-.14-1.47l1.86-1.32-1.86-3.22-2.15.86a7.6 7.6 0 0 0-2.55-1.47L14.3 3h-4.6l-.36 2.38a7.6 7.6 0 0 0-2.55 1.47l-2.15-.86-1.86 3.22L4.64 10.53c-.09.47-.14.97-.14 1.47s.05 1 .14 1.47L2.78 14.79l1.86 3.22 2.15-.86a7.6 7.6 0 0 0 2.55 1.47L9.7 21h4.6l.36-2.38a7.6 7.6 0 0 0 2.55-1.47l2.15.86 1.86-3.22-1.86-1.32c.09-.47.14-.97.14-1.47Z"></path></svg>
       </div>
@@ -149,12 +140,6 @@ input,select,textarea{font-family:inherit}
     </div>
 
     <sc-if value="{{ isCheckView }}">
-      <div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:oklch(0.45 0.01 40);margin-bottom:7px">監査レベル</div>
-      <div style="display:flex;gap:6px;margin-bottom:16px">
-        <sc-for list="{{ settingsLevelOptions }}" as="lv" hint-placeholder-count="3">
-          <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
-        </sc-for>
-      </div>
       <div style="display:flex;gap:14px;padding:10px 0;border-top:1px solid oklch(0.78 0.01 60);border-bottom:1px solid oklch(0.78 0.01 60);font:400 12px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);margin-bottom:18px;flex-wrap:wrap">
         <span style="color:oklch(0.5 0.18 25);font-weight:700">要対応 {{ nHigh }}</span>
         <span>推奨 {{ nMed }}</span>
@@ -574,7 +559,6 @@ class Component extends DCLogic {
     this.setState({tempSel});
   }
   setTempLevel(l){ this.setState({tempLevel:l}); }
-  setLevel(l){ this.setState({level:l}, ()=>this.persist()); }
   startCheck(){
     const picked = Object.keys(this.state.tempSel).filter(k=>this.state.tempSel[k]);
     this.setState({picked, level:this.state.tempLevel}, ()=>this.persist());
@@ -1105,17 +1089,12 @@ class Component extends DCLogic {
       navTabs,
       viewTitle: s.view==='check' ? '設定状況確認' : s.view==='accounts' ? '連携アカウント台帳' : 'ネットワーク診断',
       levelOptions: LEVELS.map(lv=>({
-        label: lv.label, desc: lv.desc, selected: s.tempLevel===lv.id, click: ()=>this.setTempLevel(lv.id),
-        borderColor: s.tempLevel===lv.id ? 'oklch(0.5 0.18 25)' : 'oklch(0.78 0.01 60)',
-        bg: s.tempLevel===lv.id ? 'oklch(0.97 0.03 25)' : 'oklch(0.99 0.005 85)',
-        dotBorder: s.tempLevel===lv.id ? 'oklch(0.5 0.18 25)' : 'oklch(0.6 0.01 40)',
+        label: lv.label.split(' — ')[0], click: ()=>this.setTempLevel(lv.id),
+        borderColor: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
+        bg: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'none',
+        color: s.tempLevel===lv.id ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
       })),
-      settingsLevelOptions: LEVELS.map(lv=>({
-        label: lv.label.split(' — ')[0], click: ()=>this.setLevel(lv.id),
-        borderColor: s.level===lv.id ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
-        bg: s.level===lv.id ? 'oklch(0.22 0.01 40)' : 'none',
-        color: s.level===lv.id ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
-      })),
+      tempLevelDesc: (LEVELS.find(lv=>lv.id===s.tempLevel) || LEVELS[1]).desc,
       isCheckView: showMain && s.view==='check',
       isAccountsView: showMain && s.view==='accounts',
       isNetworkView: showMain && s.view==='network',
