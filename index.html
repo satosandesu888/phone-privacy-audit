@@ -476,6 +476,15 @@ const TRACKERS = [
 // 追加された書体で識別されやすいということ。
 const FONT_PROBE = ['Helvetica Neue','Hiragino Sans','Hiragino Mincho ProN','YuGothic','Osaka','Arial','Times New Roman','Courier New','Georgia','Verdana','Trebuchet MS','Palatino','Impact','Menlo','Monaco','Optima','Futura','Baskerville','Didot','American Typewriter','Chalkboard SE','Papyrus','Zapfino'];
 // 配信データに minVersions が無い場合のフォールバック。
+const VERDICT = {
+  ok:      {label:'正常',     color:'oklch(0.5 0.1 150)'},
+  check:   {label:'要確認',   color:'oklch(0.55 0.13 75)'},
+  risk:    {label:'異常',     color:'oklch(0.5 0.18 25)'},
+  info:    {label:'参考情報', color:'oklch(0.5 0.01 40)'},
+  unknown: {label:'判定不能', color:'oklch(0.5 0.01 40)'},
+};
+const CONFIDENCE = {high:'高（実測）', est:'中（推測）', more:'低（要追加確認）'};
+const SEVERITY = {high:'重大', medium:'中', low:'低', none:'—'};
 const MIN_VERSIONS_FALLBACK = {ios:'26.0', safari:'26.0'};
 // 32bit FNV-1a。指紋の安定性を見せるためだけに使う。端末外には出さない。
 const hash32 = str => { let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0).toString(16).padStart(8,'0'); };
@@ -669,9 +678,46 @@ class Component extends DCLogic {
     }, ()=>this.persist());
   }
 
-  // 1項目の想定外の例外で診断全体を止めないための包み。同期的に throw する
-  // 検査（指紋・保存量）が1つ落ちるだけで、以降の検査が走らず他のカードが
-  // 「確認中...」のまま固まる事故を防ぐ。
+  // ---- 判定モデル ----------------------------------------------------
+  // 設計思想：断定は実測でしか行わない。直接測れたものだけを「異常」とし、
+  // 間接的な材料からの推定は「要確認」で止める。プライバシー診断では、
+  // 漏れていないのに漏れて見える誤検知のほうが、利用者の判断を歪める害が
+  // 大きいと考えているため、見逃しよりも誤検知を避ける側に倒している。
+  // その代わり「要確認」を握りつぶさず必ず表示し、確信度を併記する。
+  _emit(id, o){
+    const v = VERDICT[o.level] || VERDICT.info;
+    const rows = [
+      {label:'判定', value: v.label + ' ／ 確信度：' + (CONFIDENCE[o.confidence]||'—') + ' ／ 重要度：' + (SEVERITY[o.severity]||'—')},
+      ...(o.rows||[]),
+      ...(o.why ? [{label:'この判定になった理由', value:o.why}] : []),
+    ];
+    this.setState(s=>({net:{...s.net, [id]:{
+      loading:false,
+      text: (o.text!=null && o.text!=='') ? (v.label + '：' + o.text) : v.label,
+      color: v.color, rows,
+      note: (o.note||'') + (o.fix ? '　【改善するには】' + o.fix : ''),
+      noteColor: v.color,
+      _level: o.level, _severity: o.severity || 'none',
+    }}}));
+  }
+
+  // Mullvad Browser / Tor Browser 等の指紋対策ブラウザは、UTC固定・画面の
+  // レターボックス化・GPU名の標準化・コア数の丸めを「仕様として」行う。
+  // これを異常と誤解させないため、複数の兆候が揃った場合のみ仕様と見なす。
+  _rfpHints(){
+    const h = [];
+    try{ if(new Date().getTimezoneOffset()===0) h.push('UTC固定'); }catch(e){}
+    try{
+      const gl = document.createElement('canvas').getContext('webgl');
+      const dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      const r = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)||'') : '';
+      if(/^(mozilla|generic|google inc\.?)$/i.test(r.trim())) h.push('GPU名の標準化');
+    }catch(e){}
+    try{ if(screen.width===1000 || screen.height===1000 || screen.width===screen.height) h.push('画面サイズの丸め'); }catch(e){}
+    try{ if(navigator.hardwareConcurrency===2) h.push('コア数の丸め'); }catch(e){}
+    return h;
+  }
+
   _safe(id, fn){
     try{
       return Promise.resolve(fn()).catch(()=>{ this._checkFailed(id); return null; });
@@ -681,44 +727,88 @@ class Component extends DCLogic {
     }
   }
   _checkFailed(id){
-    this.setState(s=>({net:{...s.net, [id]:{
-      loading:false, text:'確認できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
-      note:'この項目の確認中に想定外のエラーが発生しました。他の項目の結果には影響していません。', noteColor:'oklch(0.5 0.01 40)',
-    }}}));
+    this._emit(id, {level:'unknown', confidence:'more', severity:'none', text:'確認できませんでした',
+      note:'この項目の確認中に想定外のエラーが発生しました。他の項目の結果には影響していません。異常を検出したという意味ではありません。'});
   }
 
   async runDiagnostics(){
-    const ids = ['ipv4','ipv6','dns','route','webrtc','vpnstatus','tz','tracking','blocker','fingerprint','platform','geoperm','attperm','storage','history'];
+    const ids = ['summary','ipv4','ipv6','dns','route','webrtc','vpnstatus','tz','tracking','blocker','fingerprint','platform','geoperm','attperm','storage','history','scope'];
     const loading = {};
     ids.forEach(k=>loading[k]={loading:true});
     this.setState({net:loading});
-    // WebRTC比較とVPN推定はIPv4の結果に依存する。待たずに判定すると誤報になるため、
-    // Promiseを渡して各自で待たせる。
+    const rfp = this._rfpHints();
+    // WebRTC比較とVPN推定はIPv4の結果に依存する。待たずに判定すると誤報になる。
     const ipInfo = this._safe('ipv4', ()=>this._checkIPv4());
     const dnsInfo = this._safe('dns', ()=>this._checkDNS(ipInfo));
     const jobs = [
       ipInfo, dnsInfo,
-      this._safe('ipv6', ()=>this._checkIPv6()),
+      this._safe('ipv6', ()=>this._checkIPv6(ipInfo)),
       this._safe('route', ()=>this._checkRoute()),
-      this._safe('webrtc', ()=>this._checkWebRTC(ipInfo)),
+      this._safe('webrtc', ()=>this._checkWebRTC(ipInfo, rfp)),
       this._safe('vpnstatus', ()=>this._checkVpnStatus(ipInfo, dnsInfo)),
       this._safe('blocker', ()=>this._checkBlocker()),
       this._safe('storage', ()=>this._checkStorage()),
-      this._safe('tz', ()=>this._checkTimezone()),
+      this._safe('tz', ()=>this._checkTimezone(ipInfo, rfp)),
       this._safe('tracking', ()=>this._checkTracking()),
       this._safe('geoperm', ()=>this._checkGeoPerm()),
       this._safe('attperm', ()=>this._checkAttPerm()),
-      this._safe('fingerprint', ()=>this._checkFingerprint()),
+      this._safe('fingerprint', ()=>this._checkFingerprint(rfp)),
       this._safe('platform', ()=>this._checkPlatform()),
     ];
-    // 全項目が確定してから前回との比較を出す。途中の値で比べると嘘になる。
+    this._safe('scope', ()=>this._emitScope());
     await Promise.all(jobs);
     this._safe('history', ()=>this._compareSnapshot());
+    this._safe('summary', ()=>this._emitSummary());
+  }
+
+  // ---- 総合評価 ----
+  _emitSummary(){
+    const n = this.state.net || {};
+    const TITLES = {ipv4:'外から見えるIPアドレス', ipv6:'IPv6の露出', dns:'DNSリーク', route:'出口ノード',
+      webrtc:'WebRTCリーク', vpnstatus:'VPN接続状態', tz:'タイムゾーン整合性', tracking:'トラッキング拒否シグナル',
+      blocker:'トラッカー遮断', fingerprint:'ブラウザ指紋', platform:'OS・ブラウザの更新', geoperm:'位置情報の許可',
+      attperm:'アプリ間追跡の許可', storage:'このアプリの保存量'};
+    const SEV_ORDER = {high:0, medium:1, low:2, none:3};
+    const entries = Object.keys(TITLES).filter(k=>n[k] && !n[k].loading).map(k=>({
+      id:k, title:TITLES[k], level:n[k]._level || 'info', severity:n[k]._severity || 'none',
+    }));
+    const risks = entries.filter(e=>e.level==='risk').sort((a,b)=>SEV_ORDER[a.severity]-SEV_ORDER[b.severity]);
+    const checks = entries.filter(e=>e.level==='check').sort((a,b)=>SEV_ORDER[a.severity]-SEV_ORDER[b.severity]);
+    const oks = entries.filter(e=>e.level==='ok');
+    const unknowns = entries.filter(e=>e.level==='unknown');
+    const level = risks.length ? 'risk' : (checks.length ? 'check' : 'ok');
+    const rows = [];
+    if(risks.length) rows.push({label:'① 優先して直すべき（実測で異常）', value: risks.map(e=>e.title+'（'+SEVERITY[e.severity]+'）').join('、')});
+    if(checks.length) rows.push({label:(risks.length?'② ':'① ')+'確認したほうがよい（推測）', value: checks.map(e=>e.title+'（'+SEVERITY[e.severity]+'）').join('、')});
+    if(oks.length) rows.push({label:'現時点で問題なし', value: oks.map(e=>e.title).join('、')});
+    if(unknowns.length) rows.push({label:'判定できなかった項目', value: unknowns.map(e=>e.title).join('、')});
+    this._emit('summary', {
+      level, confidence: risks.length ? 'high' : 'est', severity: risks.length ? 'high' : (checks.length ? 'medium' : 'none'),
+      text: '異常 '+risks.length+' 件／要確認 '+checks.length+' 件／正常 '+oks.length+' 件',
+      rows,
+      note:'このツールは「断定は実測でしか行わない」方針です。直接測れたものだけを異常とし、間接的な材料からの推定は要確認で止めます。プライバシー診断では、漏れていないのに漏れて見える誤検知のほうが判断を歪める害が大きいためです。その代わり要確認を握りつぶさず必ず表示し、各項目に確信度を併記しています。'
+        + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、下の「前回からの変化」と合わせて見てください。',
+    });
+  }
+
+  // ---- この診断で分かること・分からないこと ----
+  _emitScope(){
+    this._emit('scope', {
+      level:'info', confidence:'high', severity:'none', text:'診断範囲の明示',
+      rows:[
+        {label:'分かること', value:'ブラウザから外部にどう見えているか（IP・DNS・WebRTC・指紋・トラッカー遮断の実測）'},
+        {label:'分からないこと①', value:'VPN事業者がログを保持しているかどうか。事業者の運用は外部から検証できません'},
+        {label:'分からないこと②', value:'端末のマルウェア感染や不正な構成プロファイル'},
+        {label:'分からないこと③', value:'企業内などでのHTTPS傍受（中間者による証明書差し替え）'},
+        {label:'分からないこと④', value:'他アプリの設定値。iOSのサンドボックスにより読み取り不可能です'},
+        {label:'分からないこと⑤', value:'過去に既に漏れた情報。この診断は現時点の状態しか見ません'},
+      ],
+      note:'ここが全部「正常」でも、それはブラウザから観測できる範囲が正常というだけです。プライバシー全体の保証ではありません。特にVPN事業者への信頼は、この診断ではなく事業者の監査報告や司法管轄で判断する領域です。',
+    });
   }
 
   // ---- トラッカー遮断の実測 ----
   async _checkBlocker(){
-    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
     const results = await Promise.all(TRACKERS.map(async t=>{
       const r = await raceTimeout(fetch(t.url, {mode:'no-cors', cache:'no-store'}), 7000);
       if(r.timeout) return {...t, state:'unknown'};
@@ -727,31 +817,32 @@ class Component extends DCLogic {
     const blocked = results.filter(r=>r.state==='blocked').length;
     const allowed = results.filter(r=>r.state==='allowed').length;
     const unknown = results.filter(r=>r.state==='unknown').length;
+    const judged = blocked + allowed;
     const label = {blocked:'遮断された', allowed:'通過した', unknown:'判定不能（時間切れ）'};
-    this.setState(s=>({net:{...s.net, blocker:{
-      loading:false,
-      text: blocked+' / '+TRACKERS.length+' 件を遮断',
-      color: allowed===0 && unknown===0 ? green : (allowed>0 ? amber : grey),
+    let level, sev, why;
+    if(judged === 0){ level='unknown'; sev='none'; why='全件が時間切れで、遮断か通過かを判定できませんでした。回線が不安定なときに起きます。'; }
+    else if(allowed === 0){ level='ok'; sev='none'; why='判定できた '+judged+' 件すべてが遮断されました。'; }
+    else if(blocked === 0){ level='check'; sev='medium'; why='判定できた '+judged+' 件すべてが通過しました。遮断の仕組みが働いていない可能性があります。'; }
+    else { level='check'; sev='low'; why='判定できた '+judged+' 件のうち '+allowed+' 件が通過しました。遮断はされているが、対象リストに含まれないものがあります。'; }
+    this._emit('blocker', {
+      level, confidence:'high', severity:sev,
+      text: '遮断 '+blocked+' 件／通過 '+allowed+' 件／判定不能 '+unknown+' 件',
       rows: results.map(r=>({label:r.name, value:label[r.state]})),
-      note: (allowed===0 && unknown===0
-        ? '試したトラッカーはすべて遮断されました。コンテンツブロッカーまたはプライベートリレーが実際に機能しています。'
-        : allowed>0
-          ? '⚠ '+allowed+'件のトラッカーが通過しました。コンテンツブロッカーが未導入か、このドメインで無効になっている可能性があります。'
-          : '時間切ればかりで判定できませんでした。回線が不安定なときに起きます。')
-        + ' これは設定値の読み取りではなく、実際にリクエストを投げた結果です。ただし遮断できてもフィンガープリントによる識別は止まりません（下の項目を参照）。',
-      noteColor: allowed>0 ? amber : (unknown ? grey : green),
-    }}}));
+      why,
+      note:'実際にリクエストを投げた結果であり、設定値の読み取りではありません。ただし遮断の方式（DNSフィルタ・コンテンツブロッカー・ブラウザ内蔵の保護・拡張機能）によって結果は変わります。たとえばDNSレベルで遮断している場合と、ブラウザ拡張で遮断している場合では、通過する対象が異なります。時間切れは遮断とは限らないため、遮断側には数えていません。また遮断できても、下の「ブラウザ指紋」による識別は止まりません。',
+      fix: allowed>0 ? 'iOSなら、コンテンツブロッカー対応のアプリを入れて 設定 → App → Safari → 拡張機能 で有効化します。より広く止めたい場合はDNSフィルタ（暗号化DNSプロファイル）の導入も選択肢です。' : null,
+    });
   }
 
   // ---- ブラウザ指紋の識別性 ----
-  _checkFingerprint(){
+  _checkFingerprint(rfp){
     const sig = {};
     try{
       const cv = document.createElement('canvas'); cv.width=220; cv.height=60;
       const ctx = cv.getContext('2d');
       ctx.textBaseline='top'; ctx.font="14px 'Arial'";
       ctx.fillStyle='#f60'; ctx.fillRect(0,0,110,22);
-      ctx.fillStyle='#069'; ctx.fillText('privacy-audit-\u2713\u3042', 2, 18);
+      ctx.fillStyle='#069'; ctx.fillText('privacy-audit-✓あ', 2, 18);
       ctx.strokeStyle='rgba(0,80,160,.7)'; ctx.arc(60,40,18,0,Math.PI*2); ctx.stroke();
       sig.canvas = hash32(cv.toDataURL());
     }catch(e){ sig.canvas = null; }
@@ -774,41 +865,71 @@ class Component extends DCLogic {
     sig.fonts = fonts.length;
     try{ sig.screen = (screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1)); }catch(e){ sig.screen = null; }
     sig.cores = navigator.hardwareConcurrency || null;
-    sig.memory = navigator.deviceMemory || null;
     sig.touch = navigator.maxTouchPoints;
     sig.langs = (navigator.languages || [navigator.language]).join(',');
     sig.platform = navigator.platform || null;
     const present = Object.keys(sig).filter(k=>sig[k]!==null && sig[k]!==undefined && sig[k]!=='');
     const combined = hash32(JSON.stringify(sig));
-    const strong = [];
-    if(sig.canvas) strong.push('Canvas描画');
-    if(sig.gpu) strong.push('GPU名');
-    if(sig.fonts > 12) strong.push('フォント構成');
-    this.setState(s=>({net:{...s.net, fingerprint:{
-      loading:false,
-      text: combined,
-      color: strong.length>=2 ? 'oklch(0.55 0.13 75)' : 'oklch(0.5 0.01 40)',
+    // 「取得できる」ことと「識別しやすい」ことは別。標準化された値は、
+    // 多数のユーザーが同じ値を返すため識別には使いにくい。
+    const gpuStr = String(sig.gpu||'');
+    const gpuGeneric = /^(mozilla|generic|google inc\.?|apple gpu)$/i.test(gpuStr.trim());
+    // 前回のCanvasハッシュと違えば、値をランダム化する対策が働いている。
+    let canvasRandomized = false;
+    try{
+      const h = JSON.parse(localStorage.getItem('pa_history') || '[]');
+      const prev = h.length ? h[h.length-1] : null;
+      if(prev && prev.canvas && sig.canvas && prev.canvas !== sig.canvas && prev.screen === sig.screen) canvasRandomized = true;
+    }catch(e){}
+    const rfpActive = rfp && rfp.length >= 2;
+    const identifying = [];
+    if(sig.canvas && !canvasRandomized) identifying.push('Canvas描画');
+    if(sig.gpu && !gpuGeneric) identifying.push('固有のGPU名');
+    if(sig.fonts > 12) identifying.push('フォント構成');
+    let level, sev, why;
+    if(rfpActive || (gpuGeneric && canvasRandomized)){
+      level='ok'; sev='low';
+      why='値は取得できますが、GPU名の標準化・画面サイズの丸め・Canvasのランダム化といった対策が働いています。多くの利用者が同じ値を返すため、識別には使いにくい状態です。';
+    } else if(identifying.length >= 2){
+      level='check'; sev='medium';
+      why='識別力の高い信号（'+identifying.join('・')+'）が、標準化もランダム化もされないまま取得できました。Cookieを消してもこの組み合わせで同一端末と判定されうる状態です。';
+    } else {
+      level='info'; sev='low';
+      why='識別力の高い信号は限定的でした。取得できた信号は '+present.length+' 種類です。';
+    }
+    this._emit('fingerprint', {
+      level, confidence:'est', severity:sev, text: combined,
       rows: [
         {label:'取得できた識別信号', value: present.length+' 種類'},
-        {label:'Canvas描画のハッシュ', value: sig.canvas || '取得不可（遮断されています）'},
-        {label:'GPU名', value: sig.gpu || '取得不可（遮断されています）'},
+        {label:'Canvas描画のハッシュ', value: (sig.canvas || '取得不可（対策が効いています）') + (canvasRandomized ? '（前回と異なる＝ランダム化あり）' : '')},
+        {label:'GPU名', value: (sig.gpu || '取得不可（対策が効いています）') + (gpuGeneric ? '（標準化された値）' : '')},
         {label:'検出したフォント', value: sig.fonts+' / '+FONT_PROBE.length+' 種'},
         {label:'画面と拡大率', value: sig.screen || '取得不可'},
         {label:'論理コア数', value: sig.cores!=null ? String(sig.cores) : '非公開'},
         {label:'言語設定', value: sig.langs || '—'},
+        {label:'指紋対策の兆候', value: (rfp && rfp.length) ? rfp.join('・') : '検出されず'},
       ],
-      note: (strong.length>=2
-        ? '⚠ 識別力の高い信号（'+strong.join('・')+'）が揃っています。Cookieを消してもこの組み合わせで同一端末と判定されうる状態です。'
-        : '識別力の高い信号は限定的です。Canvas や GPU名 が取得不可になっているのは、ブラウザ側の指紋対策が効いている証拠です。')
-        + ' 上のハッシュは端末内で計算しただけで、どこにも送信していません。母集団の統計を持たないため「何人に1人」という数値は出しません——出せば根拠のない数字になります。判断材料は、信号が何種類取れてしまうかです。',
-      noteColor: strong.length>=2 ? 'oklch(0.55 0.13 75)' : 'oklch(0.5 0.01 40)',
-    }}}));
+      why,
+      note:'重要なのは「取得できるか」ではなく「他人と違う値か」です。標準化（全員に同じ値を返す）やランダム化（毎回違う値を返す）が働いていれば、値が取れても識別には使えません。この判定は取得できた信号の種類と標準化の兆候から推定したもので、実際の追跡可能性を測ったものではありません——母集団の統計を持たないため「何人に1人」といった数値は出しません。上のハッシュは端末内で計算しただけで、どこにも送信していません。',
+      fix: level==='check' ? 'Safariなら 設定 → Safari → 詳細 →「高度なトラッキングとフィンガープリントからの保護」を有効にします。より徹底するならMullvad BrowserやTor Browserのように、全利用者の値を揃える設計のブラウザを使う方法があります。' : null,
+    });
   }
 
   // ---- OS・ブラウザの更新状況 ----
   _checkPlatform(){
     const ua = navigator.userAgent || '';
-    const mIos = ua.match(/(?:iPhone|iPad|CPU) OS (\d+)[_.](\d+)/) || ua.match(/Version\/(\d+)\.(\d+).*Mobile/);
+    const isApplePhone = /iPhone|iPad|iPod/.test(ua);
+    if(!isApplePhone){
+      this._emit('platform', {
+        level:'info', confidence:'high', severity:'none', text:'iPhone以外の環境です',
+        rows:[{label:'User-Agent', value: ua ? ua.slice(0,80) : '取得できません'},
+              {label:'基準（配信データ）', value:'iOS '+((this.state.data&&this.state.data.minVersions||MIN_VERSIONS_FALLBACK).ios)}],
+        why:'このアプリはiPhoneのSafariを前提に基準値を持っているため、それ以外の環境ではバージョン判定を行いません。',
+        note:'デスクトップや指紋対策ブラウザでは、User-Agent自体が意図的に偽装・固定されていることも多く、そこから読み取ったバージョンは信頼できません。iPhoneで開いた場合のみ判定します。',
+      });
+      return;
+    }
+    const mIos = ua.match(/(?:iPhone|iPad|CPU) OS (\d+)[_.](\d+)/);
     const mSaf = ua.match(/Version\/(\d+)\.(\d+)/);
     const iosVer = mIos ? mIos[1]+'.'+mIos[2] : null;
     const safVer = mSaf ? mSaf[1]+'.'+mSaf[2] : null;
@@ -816,24 +937,19 @@ class Component extends DCLogic {
     const iosOld = iosVer && cmpVersion(iosVer, min.ios) < 0;
     const safOld = safVer && cmpVersion(safVer, min.safari) < 0;
     const stale = iosOld || safOld;
-    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
-    this.setState(s=>({net:{...s.net, platform:{
-      loading:false,
-      text: iosVer ? ('iOS '+iosVer+(safVer ? ' / Safari '+safVer : '')) : '判定できませんでした',
-      color: stale ? amber : (iosVer ? green : grey),
+    this._emit('platform', {
+      level: stale ? 'check' : (iosVer ? 'ok' : 'unknown'),
+      confidence: 'est', severity: stale ? 'high' : 'none',
+      text: iosVer ? ('iOS '+iosVer+(safVer ? ' / Safari '+safVer : '')) : 'バージョンを読み取れませんでした',
       rows: [
         {label:'OS バージョン', value: iosVer || '不明'},
         {label:'ブラウザ バージョン', value: safVer || '不明'},
         {label:'基準（配信データ）', value: 'iOS '+min.ios+' / Safari '+min.safari},
       ],
-      note: (stale
-        ? '⚠ 基準より古いバージョンです。公開済みの脆弱性が未修正のまま残っている可能性があります。設定 → 一般 → ソフトウェアアップデート から更新してください。'
-        : iosVer
-          ? '基準を満たしています。プライバシー設定をいくら詰めても、OSが古いままだとそこが最も弱い箇所になるため、この項目を最初に見る価値があります。'
-          : 'ユーザーエージェントからバージョンを判定できませんでした。ブラウザが情報を隠している場合にも起きます。')
-        + ' 基準値は配信データの minVersions で管理しているので、新しいOSが出れば更新だけで全端末の判定が変わります。',
-      noteColor: stale ? amber : grey,
-    }}}));
+      why: stale ? '読み取ったバージョンが基準値を下回っています。' : (iosVer ? '読み取ったバージョンが基準値を満たしています。' : 'User-Agentからバージョンを読み取れませんでした。'),
+      note:'User-Agentは書き換えられるため、この判定は「推測」です。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準値は配信データの minVersions で管理しており、新しいOSが出れば更新だけで全端末の判定が変わります。',
+      fix: stale ? '設定 → 一般 → ソフトウェアアップデート から更新します。' : null,
+    });
   }
 
   // ---- このアプリが端末に残しているもの ----
@@ -861,85 +977,91 @@ class Component extends DCLogic {
       const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : null;
       rows.push({label:'Service Worker', value: regs ? regs.length+' 件' : '非対応'});
     }catch(e){}
-    this.setState(s=>({net:{...s.net, storage:{
-      loading:false,
-      text: lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB',
-      color:'oklch(0.22 0.01 40)', rows,
-      note:'これはこのアプリ自身が端末に残しているものの実測です。チェック状況・台帳・設定はすべて localStorage（pa_ で始まるキー）に入っており、Cookie も外部送信も使っていません。他サイトの保存内容はブラウザが分離しているため、こちらからは見えません。Safari の設定 → 詳細 → Webサイトデータ から、いつでも全部消せます。',
-      noteColor:'oklch(0.5 0.01 40)',
-    }}}));
+    this._emit('storage', {
+      level:'info', confidence:'high', severity:'none',
+      text: lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB', rows,
+      why:'このアプリ自身が端末に保存している量の実測値です。',
+      note:'監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出しています。チェック状況・台帳・設定はすべて localStorage（pa_ で始まるキー）に入っており、Cookieも外部送信も使っていません。他サイトの保存内容はブラウザが分離しているため、こちらからは見えません。',
+      fix:'全部消すには Safari の 設定 → 詳細 → Webサイトデータ から該当サイトを削除します。',
+    });
   }
 
   // ---- 前回からの変化（劣化検知） ----
   _compareSnapshot(){
     const n = this.state.net || {};
-    const get = (k,f) => (n[k] && n[k][f] !== undefined ? n[k][f] : null);
+    const lv = k => (n[k] && n[k]._level) || null;
+    const rowOf = (k, label) => ((n[k] && n[k].rows) || []).reduce((a,r)=>r.label===label?r.value:a, null);
+    let canvas = null, screenSig = null;
+    try{
+      const c = rowOf('fingerprint','Canvas描画のハッシュ');
+      canvas = c ? String(c).split('（')[0] : null;
+      screenSig = rowOf('fingerprint','画面と拡大率');
+    }catch(e){}
     const snap = {
       at: new Date().toISOString().slice(0,16).replace('T',' '),
-      exitIp: get('ipv4','text'),
-      vpn: get('vpnstatus','text'),
-      dns: (n.dns && n.dns.rows || []).reduce((a,r)=>r.label==='出口との関係'?r.value:a, null),
-      ipv6: get('ipv6','text'),
-      webrtc: /⚠/.test((n.webrtc && n.webrtc.note) || '') ? 'リークあり' : 'リークなし',
-      blocker: get('blocker','text'),
-      fingerprint: get('fingerprint','text'),
-      platform: get('platform','text'),
+      exitIp: (n.ipv4 && n.ipv4.text) || null,
+      vpnLv: lv('vpnstatus'), dnsLv: lv('dns'), webrtcLv: lv('webrtc'),
+      ipv6Lv: lv('ipv6'), blockerLv: lv('blocker'), fpLv: lv('fingerprint'), platformLv: lv('platform'),
+      blockedN: (()=>{ const m=/遮断 (\d+) 件/.exec((n.blocker&&n.blocker.text)||''); return m?parseInt(m[1],10):null; })(),
+      allowedN: (()=>{ const m=/通過 (\d+) 件/.exec((n.blocker&&n.blocker.text)||''); return m?parseInt(m[1],10):null; })(),
+      canvas, screen: screenSig,
     };
+    const FIELDS = [
+      ['platformLv','OS・ブラウザの更新'], ['vpnLv','VPN接続状態'], ['dnsLv','DNSリーク'],
+      ['webrtcLv','WebRTCリーク'], ['ipv6Lv','IPv6の露出'], ['fpLv','ブラウザ指紋'], ['exitIp','出口IP'],
+    ];
     let hist = [];
     try{ hist = JSON.parse(localStorage.getItem('pa_history') || '[]'); }catch(e){}
     const prev = hist.length ? hist[hist.length-1] : null;
-    const FIELDS = [
-      ['platform','OS・ブラウザ'], ['vpn','VPN接続状態'], ['dns','DNSリゾルバ'],
-      ['webrtc','WebRTCリーク'], ['ipv6','IPv6'], ['blocker','トラッカー遮断'],
-      ['fingerprint','指紋ハッシュ'], ['exitIp','出口IP'],
-    ];
-    const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
     if(!prev){
       try{ localStorage.setItem('pa_history', JSON.stringify([snap])); }catch(e){}
-      this.setState(s=>({net:{...s.net, history:{
-        loading:false, text:'初回の記録を保存しました', color:grey,
+      this._emit('history', {
+        level:'info', confidence:'high', severity:'none', text:'初回の記録を保存しました',
         rows: FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
-        note:'次回以降、この記録と比べて変化した項目だけを並べます。設定が勝手に戻る類の事故は、こうして定点観測しないと気づけません。記録は端末内にのみ保存され、直近10回分だけ残します。',
-        noteColor:grey,
-      }}}));
+        why:'比較対象となる過去の記録がまだありません。',
+        note:'次回以降、この記録と比べて変化した項目だけを並べます。設定が勝手に元へ戻る類の事故は、こうして定点観測しないと気づけません。記録は端末内にのみ保存され、直近10回分だけ残します。',
+      });
       return;
     }
+    const RANK = {ok:0, info:1, unknown:2, check:3, risk:4};
     const changed = FIELDS.filter(([k])=>String(prev[k]) !== String(snap[k]));
+    // 悪化＝判定の段階が下がったものだけ。判定不能への変化は悪化に数えない。
     const worse = changed.filter(([k])=>{
-      if(k==='webrtc') return snap.webrtc==='リークあり';
-      if(k==='blocker'){
-        const p=parseInt(prev.blocker,10), c=parseInt(snap.blocker,10);
-        return !isNaN(p) && !isNaN(c) && c < p;
-      }
-      if(k==='vpn') return /一般ISP回線/.test(String(snap.vpn||''));
-      if(k==='dns') return String(snap.dns)==='別組織';
-      if(k==='platform') return /⚠/.test((n.platform && n.platform.note) || '');
-      return false;
+      if(!/Lv$/.test(k)) return false;
+      const a = RANK[prev[k]], b = RANK[snap[k]];
+      if(a==null || b==null) return false;
+      if(snap[k]==='unknown') return false;
+      return b > a;
     });
+    // 遮断数の減少は、判定不能が増えただけの場合を除いて悪化とみなす。
+    let blockerWorse = false;
+    if(prev.blockedN!=null && snap.blockedN!=null && snap.blockedN < prev.blockedN
+       && prev.allowedN!=null && snap.allowedN!=null && snap.allowedN > prev.allowedN){
+      blockerWorse = true;
+      changed.push(['blockedN','トラッカー遮断']);
+      worse.push(['blockedN','トラッカー遮断']);
+    }
     hist.push(snap);
     if(hist.length > 10) hist = hist.slice(-10);
     try{ localStorage.setItem('pa_history', JSON.stringify(hist)); }catch(e){}
-    this.setState(s=>({net:{...s.net, history:{
-      loading:false,
+    const nameOf = k => (FIELDS.find(f=>f[0]===k)||[null,k])[1];
+    this._emit('history', {
+      level: worse.length ? 'check' : 'info',
+      confidence:'high', severity: worse.length ? 'medium' : 'none',
       text: changed.length ? changed.length+' 項目が前回と変化' : '前回から変化なし',
-      color: worse.length ? amber : (changed.length ? grey : green),
       rows: changed.length
-        ? changed.map(([k,l])=>({label:l+(worse.some(w=>w[0]===k)?'（悪化）':''), value: String(prev[k])+' → '+String(snap[k])}))
+        ? changed.map(([k,l])=>({label:(l||nameOf(k))+(worse.some(w=>w[0]===k)?'（悪化）':''), value: String(prev[k])+' → '+String(snap[k])}))
         : FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
-      note: (worse.length
-        ? '⚠ '+worse.map(w=>w[1]).join('・')+' が前回より悪い状態です。設定が戻った、VPNが切れている、ブロッカーが無効になっている、などが疑われます。'
-        : changed.length
-          ? '変化はありますが、悪化と判断できるものはありません。出口IPや指紋ハッシュは回線や環境が変われば当然変わります。'
-          : '前回の記録から変化はありません。')
-        + ' 前回の記録：'+prev.at+'（端末内に直近10回分のみ保存）',
-      noteColor: worse.length ? amber : grey,
-    }}}));
+      why: worse.length
+        ? worse.map(w=>w[1]||nameOf(w[0])).join('・')+' の判定が前回より下がりました。'
+        : (changed.length ? '変化はありますが、判定の段階が下がったものはありません。' : '前回の記録と同じ状態です。'),
+      note:'比較しているのは各項目の判定の段階です。出口IPや指紋ハッシュは回線や環境が変われば当然変わるため、値が変わっただけでは悪化として扱いません。判定不能への変化も悪化には数えません——通信が一時的に不安定だっただけの可能性があるためです。前回の記録：'+prev.at+'（端末内に直近10回分のみ保存）',
+    });
   }
+
   async _checkIPv4(){
-    // まずIPv4専用エンドポイントでアドレスを確定させ、そのうえで詳細を引く。
-    // ipwho.is に素で当てると「接続してきたIP」が返るため、端末がIPv6で
-    // 接続しているとIPv6が返り、IPv4欄にIPv6が出る。WebRTC比較の基準も
-    // 狂うので、ここは必ずIPv4専用の api.ipify.org を先に通す。
+    // IPv4専用エンドポイントでアドレスを確定させてから詳細を引く。ipwho.is に
+    // 素で当てると「接続してきたIP」が返るため、IPv6接続だとIPv6が入り込む。
     let ip = null;
     try{
       const r = await fetch(bust('https://api.ipify.org?format=json'),{cache:'no-store'});
@@ -947,11 +1069,11 @@ class Component extends DCLogic {
       if(d && d.ip) ip = d.ip;
     }catch(e){}
     if(!ip){
-      this.setState(s=>({net:{...s.net, ipv4:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
-        note:'IPv4専用エンドポイントに到達できませんでした。IPv4アドレスを持たない接続の可能性もあります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      this._emit('ipv4', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'IPv4専用エンドポイントに到達できませんでした。',
+        note:'IPv4アドレスを持たない接続の可能性もあります。異常を検出したという意味ではありません。'});
       return null;
     }
-    const looksV6 = ip.includes(':');
     let rows = [], org = '', country = '';
     try{
       const r2 = await fetch('https://ipwho.is/'+ip,{cache:'no-store'});
@@ -969,42 +1091,65 @@ class Component extends DCLogic {
         ];
       }
     }catch(e){}
-    this.setState(s=>({net:{...s.net, ipv4:{
-      loading:false, text: ip, color:'oklch(0.22 0.01 40)', rows,
-      note: looksV6
-        ? '⚠ IPv4専用エンドポイントがIPv6を返しました。想定外の状態です。'
-        : (rows.length ? 'VPN接続中なら、接続先サーバーのISPと所在地が表示されます。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。' : 'アドレスは取得できましたが、ISP・所在地の詳細は取得できませんでした。'),
-      noteColor: looksV6 ? 'oklch(0.5 0.18 25)' : 'oklch(0.5 0.01 40)',
-    }}}));
-    return {ip, org, country, looksV6};
+    this._emit('ipv4', {
+      level:'info', confidence:'high', severity:'none', text: ip, rows,
+      why:'外部から見えているアドレスの実測値です。良し悪しの判定は行いません（VPNを使う意図があるかどうかは利用者にしか分からないため）。',
+      note:'VPN接続中なら、ここに出るのは自宅回線ではなく接続先サーバーのISPと所在地です。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。VPNを使う意図がなければ、この表示自体は問題ではありません。',
+    });
+    return {ip, org, country};
   }
-  async _checkIPv6(){
+
+  async _checkIPv6(ipInfoPromise){
+    let ip = null;
     try{
       const r = await fetch(bust('https://api6.ipify.org?format=json'),{cache:'no-store'});
       const d = await r.json();
-      let rows = [];
-      try{
-        const r2 = await fetch('https://ipwho.is/'+d.ip,{cache:'no-store'});
-        const d2 = await r2.json();
-        if(d2 && d2.success!==false){
-          const conn = d2.connection || {};
-          rows = [
-            {label:'ISP', value: conn.isp || conn.org || '—'},
-            {label:'国', value: d2.country || '—'},
-            {label:'都道府県', value: d2.region || '—'},
-            {label:'市区町村', value: d2.city || '—'},
-          ];
-        }
-      }catch(e2){}
-      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:d.ip, color:'oklch(0.22 0.01 40)', rows, note:'IPv6アドレスが割り当てられています。これ自体は正常な状態です。上のIPv4診断とISP・国が一致していれば、IPv6もVPNを通っています。一致しない場合、VPNがIPv6に未対応でこの経路が素通しになっており、実IPが露出している状態です。', noteColor:'oklch(0.5 0.01 40)'}}}));
-    }catch(e){
-      this.setState(s=>({net:{...s.net, ipv6:{loading:false, text:'割り当てなし（安全）', color:'oklch(0.5 0.1 150)', rows:[], note:'IPv6アドレスが割り当てられていないため、この経路からの漏洩はありません。', noteColor:'oklch(0.5 0.1 150)'}}}));
+      ip = d && d.ip ? d.ip : null;
+    }catch(e){}
+    if(!ip){
+      this._emit('ipv6', {level:'ok', confidence:'high', severity:'none', text:'割り当てなし',
+        why:'IPv6アドレスが割り当てられていないため、この経路からの露出はありません。',
+        note:'IPv4のみの接続です。IPv6経由で実IPが出る心配はありません。'});
+      return;
     }
+    let rows = [], org6 = '', country6 = '';
+    try{
+      const r2 = await fetch('https://ipwho.is/'+ip,{cache:'no-store'});
+      const d2 = await r2.json();
+      if(d2 && d2.success!==false){
+        const conn = d2.connection || {};
+        org6 = conn.isp || conn.org || '';
+        country6 = d2.country || '';
+        rows = [
+          {label:'ISP / 登録組織名', value: org6 || '—'},
+          {label:'国', value: country6 || '—'},
+          {label:'都道府県', value: d2.region || '—'},
+          {label:'市区町村', value: d2.city || '—'},
+        ];
+      }
+    }catch(e){}
+    const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
+    const org4 = (ipInfo && ipInfo.org) || '';
+    const t4 = orgToken(org4), t6 = orgToken(org6);
+    let level, sev, why;
+    if(t4 && t6 && t4 === t6){
+      level='ok'; sev='none';
+      why='IPv6の登録組織がIPv4と同一です（'+org6+'）。IPv6も同じ経路を通っています。';
+    } else if(t4 && t6){
+      level='check'; sev='high';
+      why='IPv6の登録組織（'+org6+'）がIPv4（'+org4+'）と異なります。VPNがIPv6に未対応で、この経路だけ素通しになっている可能性があります。';
+    } else {
+      level='info'; sev='none';
+      why='比較に必要な組織情報が揃わなかったため、IPv4との一致は確認できませんでした。';
+    }
+    this._emit('ipv6', {
+      level, confidence:'est', severity:sev, text: ip, rows, why,
+      note:'IPv6が割り当てられていること自体は正常で、問題ではありません。問題になるのは、IPv4はVPNを通っているのにIPv6だけ別経路になっている場合です。上のIPv4診断と登録組織が一致していれば、両方とも同じ経路です。',
+      fix: level==='check' ? 'VPNアプリの設定でIPv6を有効にするか、IPv6を遮断する設定（IPv6リーク防止）を入れます。' : null,
+    });
   }
+
   async _checkDNS(ipInfoPromise){
-    // dnsleaktest.com のAPIは公開されておらず、ブラウザからは叩けない。
-    // 代わりに ip-api の EDNS エンドポイントを使う。ここは自前の権威DNSで
-    // 応答するため、「実際に問い合わせを行ったリゾルバ」を返してくれる。
     try{
       const r = await fetch(bust('https://edns.ip-api.com/json'),{cache:'no-store'});
       const d = await r.json();
@@ -1012,64 +1157,79 @@ class Component extends DCLogic {
       if(!dns.ip) throw new Error('no resolver info');
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
       const exitIp = (ipInfo && ipInfo.ip) || '';
-      const geo = dns.geo || '';
-      const green='oklch(0.5 0.1 150)', amber='oklch(0.55 0.13 75)', grey='oklch(0.5 0.01 40)';
-      // 強い手がかりから順に見る。
-      const sameNet = sameSlash24(dns.ip, exitIp);
       const exitOrg = (ipInfo && ipInfo.org) || '';
+      const geo = dns.geo || '';
+      const sameNet = sameSlash24(dns.ip, exitIp);
       const exitTok = orgToken(exitOrg), resTok = orgToken(geo);
       const orgMatch = !!(exitTok && resTok && exitTok === resTok);
-      const canCompare = sameNet || !!(exitTok && resTok);
-      let verdict, color, relation;
+      // リゾルバがデータセンター事業者のものなら、ISPへの流出ではない。
+      // VPN事業者が複数のAS・データセンターを使うのはよくある構成なので、
+      // 組織名が違うだけで「ISPに漏れている」と断定してはいけない。
+      const resIsDc = !!(geo && DATACENTER_ORG_RE.test(geo));
+      let level, sev, why, relation, fix = null;
       if(sameNet){
-        verdict = 'リゾルバが出口IPと同一の /24 に属しています。VPN事業者自身が運用するリゾルバを使っており、DNSリークはありません。';
-        color = green; relation = '同一ネットワーク（/24）';
+        level='ok'; sev='none'; relation='同一ネットワーク（/24）';
+        why='リゾルバが出口IPと同一の /24 に属しています。VPN事業者自身が運用するリゾルバです。';
       } else if(orgMatch){
-        verdict = 'リゾルバの登録組織が出口IPと同一です。VPN事業者のリゾルバを使っており、DNSリークはありません。';
-        color = green; relation = '同一組織';
-      } else if(!canCompare){
-        verdict = '出口IPの登録組織を取得できなかったため、照合できませんでした。リークを検出したという意味ではありません。リゾルバ自体は上記のとおりです。';
-        color = grey; relation = '比較不可';
+        level='ok'; sev='none'; relation='同一組織';
+        why='リゾルバの登録組織が出口IPと同一です（'+exitOrg+'）。';
+      } else if(resIsDc){
+        level='ok'; sev='low'; relation='別組織だがデータセンター事業者';
+        why='リゾルバ（'+geo+'）は出口IPと別組織ですが、一般ISPではなくデータセンター/ホスティング事業者です。VPN事業者が複数のASやデータセンターにリゾルバを置く構成ではよく起きる状態で、ISPへの流出ではありません。';
+      } else if(exitTok && resTok){
+        level='check'; sev='medium'; relation='別組織';
+        why='リゾルバ（'+geo+'）が出口IP（'+exitOrg+'）と別組織で、データセンター事業者にも該当しません。契約回線のリゾルバが使われている可能性があります。';
+        fix='VPNアプリの設定でDNSをVPN事業者のものに固定するか、暗号化DNS（DoH/DoT）プロファイルを設定します。断定はできないので、まず dnsleaktest.com で網羅的に確認してください。';
       } else {
-        verdict = 'リゾルバの登録組織が出口IPと異なります（出口「'+exitOrg+'」／リゾルバ「'+geo+'」）。ISPのリゾルバに名前解決が流れている可能性があり、その場合は閲覧したドメインの一覧がISPに渡ります。';
-        color = amber; relation = '別組織';
+        level='unknown'; sev='none'; relation='比較不可';
+        why='出口IPの登録組織を取得できなかったため、照合できませんでした。';
       }
-      this.setState(s=>({net:{...s.net, dns:{
-        loading:false, text: dns.ip, color,
+      this._emit('dns', {
+        level, confidence:'est', severity:sev, text: dns.ip,
         rows:[
           {label:'問い合わせ元リゾルバ', value: dns.ip},
           {label:'リゾルバの所在・組織', value: geo || '—'},
           {label:'出口IP', value: exitIp || '—'},
           {label:'出口との関係', value: relation},
         ],
-        note: verdict + ' 検出できるのは実際に問い合わせを行った1台のみです。設定されている全リゾルバを列挙するには権威DNSサーバー側でクエリ元を記録する必要があり、静的ページからは実施できません。網羅的に確認する場合は dnsleaktest.com を直接開いてください（チェックリストにも項目として入れてあります）。',
-        noteColor: color,
-      }}}));
+        why,
+        note:'検出できるのは実際に問い合わせを行った1台のみです。設定されている全リゾルバを列挙するには権威DNSサーバー側でクエリ元を記録する必要があり、静的ページからは実施できません。またVPN事業者が複数のASを使うことがあるため、組織名の不一致だけでは流出と断定できません。網羅的に確認する場合は dnsleaktest.com を直接開いてください。',
+        fix,
+      });
       return {resolverIp: dns.ip, geo, sameNet};
     }catch(e){
-      this.setState(s=>({net:{...s.net, dns:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[],
-        note:'リゾルバ判定用エンドポイントに到達できませんでした。リークを検出したという意味ではありません。dnsleaktest.com を直接開いて確認してください。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      this._emit('dns', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'リゾルバ判定用エンドポイントに到達できませんでした。',
+        note:'リークを検出したという意味ではありません。dnsleaktest.com を直接開いて確認してください。'});
       return null;
     }
   }
+
   async _checkRoute(){
     try{
       const r = await fetch(bust('https://www.cloudflare.com/cdn-cgi/trace'),{cache:'no-store'});
       const text = await r.text();
       const obj = {};
       text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
-      const rows = [
-        {label:'出口IP', value: obj.ip || '—'},
-        {label:'エッジ拠点 (colo)', value: obj.colo || '—'},
-        {label:'WARP', value: obj.warp==='on' ? '有効' : '無効'},
-        {label:'TLSバージョン', value: obj.tls || '—'},
-      ];
-      this.setState(s=>({net:{...s.net, route:{loading:false, text:'colo: '+(obj.colo||'—'), color:'oklch(0.22 0.01 40)', rows, note:'ブラウザから実際のtraceroute（経由ルーター一覧）は取得できません。到達しているエッジ拠点を代替指標として表示しています。拠点の地理的位置が上のIPv4診断の国とかけ離れていなければ、経路として妥当です。', noteColor:'oklch(0.5 0.01 40)'}}}));
+      this._emit('route', {
+        level:'info', confidence:'high', severity:'none', text: 'colo: '+(obj.colo||'—'),
+        rows:[
+          {label:'出口IP', value: obj.ip || '—'},
+          {label:'エッジ拠点 (colo)', value: obj.colo || '—'},
+          {label:'WARP', value: obj.warp==='on' ? '有効' : '無効'},
+          {label:'TLSバージョン', value: obj.tls || '—'},
+        ],
+        why:'到達しているCDNのエッジ拠点です。経路そのものではなく、経路の妥当性を見るための参考値です。',
+        note:'ブラウザから実際のtraceroute（経由ルーター一覧）は取得できません。拠点の地理的位置が上のIPv4診断の国とかけ離れていなければ、経路として妥当です。ここに表示される出口IPは、接続に使われたプロトコル次第でIPv6になることがあり、上のIPv4診断とは別の値になる場合があります。',
+      });
     }catch(e){
-      this.setState(s=>({net:{...s.net, route:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this._emit('route', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'Cloudflare の trace エンドポイントに到達できませんでした。',
+        note:'指紋対策ブラウザやブロッカーがこの通信を遮断している場合にも起きます。異常を検出したという意味ではありません。'});
     }
   }
-  async _checkWebRTC(ipInfoPromise){
+
+  async _checkWebRTC(ipInfoPromise, rfp){
     try{
       const ips = new Set();
       const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
@@ -1085,77 +1245,119 @@ class Component extends DCLogic {
       await new Promise(res=>setTimeout(res,1500));
       pc.close();
       const list = Array.from(ips);
-      // IPv4診断の確定を待ってから比較する。並行実行のまま判定すると取得前の値と
-      // 比べてしまい、一致しているのに「別の公開IPを検出」と誤報する。
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
       const publicIp = (ipInfo && ipInfo.ip) || null;
       const publicFound = list.filter(ip=>!isPrivateIp(ip));
       const leaked = publicIp ? publicFound.filter(ip=>ip!==publicIp) : [];
-      const undecidable = !publicIp && publicFound.length>0;
-      const green='oklch(0.5 0.1 150)', red='oklch(0.5 0.18 25)', grey='oklch(0.5 0.01 40)';
-      let note, noteColor;
+      const rfpActive = rfp && rfp.length >= 2;
+      let level, sev, why, fix = null;
       if(leaked.length){
-        note='⚠ 上のIPv4診断とは別の公開IPがICE candidateとして列挙されました：'+leaked.join(' / ')+'　VPN使用中であれば、これが実IPとして通信相手に渡っている可能性があります。';
-        noteColor=red;
-      } else if(undecidable){
-        note='照合対象のIPv4アドレスを取得できなかったため、判定できませんでした。リークを検出したという意味ではありません。';
-        noteColor=grey;
+        level='risk'; sev='high';
+        why='上のIPv4診断とは別の公開IP（'+leaked.join(' / ')+'）がICE candidateとして列挙されました。実測で確認できた漏洩です。';
+        fix='VPNアプリのWebRTCリーク防止を有効にするか、ブラウザ側でWebRTCを無効化します。';
+      } else if(!publicIp && publicFound.length){
+        level='unknown'; sev='none';
+        why='照合対象のIPv4アドレスを取得できなかったため、判定できませんでした。';
       } else if(publicFound.length){
-        note='列挙された公開IPは上のIPv4診断と一致しました。リークはありません。';
-        noteColor=green;
+        level='ok'; sev='none';
+        why='列挙された公開IPは上のIPv4診断と一致しました。別経路からの漏洩はありません。';
       } else if(list.length){
-        note='プライベートアドレスのみが列挙されました。外部へは渡らないため、リークはありません。';
-        noteColor=green;
+        level='ok'; sev='none';
+        why='プライベートアドレスのみが列挙されました。外部へは渡りません。';
       } else {
-        note='このブラウザ・接続ではICE candidateが生成されませんでした。この経路からのリークは発生しません。';
-        noteColor=grey;
+        level='ok'; sev='none';
+        why='ICE candidateが1件も生成されませんでした。' + (rfpActive ? 'Mullvad Browser や Tor Browser はWebRTCを既定で無効にしており、これはその仕様どおりの正常な状態です。' : 'この経路からの漏洩は発生しません。');
       }
-      this.setState(s=>({net:{...s.net, webrtc:{
-        loading:false,
+      this._emit('webrtc', {
+        level, confidence:'high', severity:sev,
         text: list.length ? list.join(' / ') : '候補IPは検出されませんでした',
-        color: leaked.length ? red : (undecidable || !list.length ? grey : green),
-        note, noteColor,
-        rows:[],
-      }}}));
+        why,
+        note:'WebRTCはブラウザ内蔵のP2P通信機構で、接続相手に自分のIPアドレス候補を直接伝えます。この列挙はVPNクライアントを経由しないことがあり、VPN使用中でも実IPが渡る既知の抜け穴です。ここは実際に列挙させて確認しているため、判定の確信度は高い項目です。候補が出ないブラウザでは、そもそもこの抜け穴自体が存在しません。',
+        fix,
+      });
     }catch(e){
-      this.setState(s=>({net:{...s.net, webrtc:{loading:false, text:'このブラウザでは検査できません', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this._emit('webrtc', {level:'unknown', confidence:'more', severity:'none', text:'検査できませんでした',
+        why:'このブラウザではWebRTCの検査を実行できませんでした。',
+        note:'WebRTCが無効化されている環境でも起きます。異常を検出したという意味ではありません。'});
     }
   }
-  _checkTimezone(){
+
+  _checkTimezone(ipInfoPromise, rfp){
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '—';
     const offsetMin = -new Date().getTimezoneOffset();
     const sign = offsetMin>=0 ? '+' : '-';
     const offset = 'UTC'+sign+String(Math.floor(Math.abs(offsetMin)/60)).padStart(2,'0')+':'+String(Math.abs(offsetMin)%60).padStart(2,'0');
-    this.setState(s=>({net:{...s.net, tz:{loading:false, text:tz+'（'+offset+'）', color:'oklch(0.22 0.01 40)', rows:[], note:'上のIPv4診断の「国」と大きく食い違う場合、タイムゾーンから実際の居住地域を推定される材料になります。VPNで国を変えて常用するなら、端末側のタイムゾーンも合わせるか、この不一致を承知して使うことになります。', noteColor:'oklch(0.5 0.01 40)'}}}));
+    const rfpActive = rfp && rfp.length >= 2;
+    Promise.resolve(ipInfoPromise).catch(()=>null).then(ipInfo=>{
+      const country = (ipInfo && ipInfo.country) || '';
+      let level, sev, why;
+      if(offsetMin === 0 && rfpActive){
+        level='ok'; sev='none';
+        why='タイムゾーンがUTCに固定されています。Mullvad Browser や Tor Browser は全利用者の時刻帯をUTCに揃えることで識別を防ぐ設計であり、これは仕様どおりの正常な状態です。IPの国と食い違っていても問題ではありません。';
+      } else if(country && offsetMin === 0){
+        level='info'; sev='low';
+        why='タイムゾーンがUTCですが、指紋対策ブラウザの兆候は十分に検出されませんでした。意図的な設定であれば問題ありません。';
+      } else {
+        level='info'; sev='low';
+        why='端末のタイムゾーンは '+tz+'（'+offset+'）、IPから推定される国は '+(country||'不明')+' です。';
+      }
+      this._emit('tz', {
+        level, confidence:'est', severity:sev, text: tz+'（'+offset+'）',
+        rows:[{label:'端末のタイムゾーン', value: tz+'（'+offset+'）'},
+              {label:'IPから推定される国', value: country || '判定できませんでした'},
+              {label:'指紋対策の兆候', value: (rfp && rfp.length) ? rfp.join('・') : '検出されず'}],
+        why,
+        note:'IPの国と時刻帯が食い違うと、VPNで所在地を偽装していても実際の居住地域を推定する材料になります。ただし指紋対策ブラウザはUTC固定が仕様なので、その場合の不一致は正常です。どちらに当たるかは上の「指紋対策の兆候」で判断しています。この項目は単独で危険を示すものではないため、重要度は低に置いています。',
+      });
+    });
   }
+
   _checkTracking(){
     const dnt = (navigator.doNotTrack==='1' || window.doNotTrack==='1' || navigator.doNotTrack==='yes') ? '有効' : (navigator.doNotTrack==='0' ? '無効' : '未設定');
     const gpc = typeof navigator.globalPrivacyControl !== 'undefined' ? (navigator.globalPrivacyControl ? '有効' : '無効') : '未対応';
-    this.setState(s=>({net:{...s.net, tracking:{loading:false, text:'', color:'oklch(0.22 0.01 40)', rows:[
-      {label:'Do Not Track', value:dnt},
-      {label:'Global Privacy Control', value:gpc},
-    ], note:'いずれもHTTPヘッダーで拒否の意思を伝えるだけの仕組みで、サイト側に遵守義務はありません（GPCは一部の法域で法的効力を持ちます）。有効であっても追跡されない保証にはなりません。', noteColor:'oklch(0.5 0.01 40)'}}}));
-  }
-  _checkGeoPerm(){
-    if(!navigator.permissions){
-      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'このブラウザは非対応', color:'oklch(0.5 0.01 40)', rows:[]}}}));
-      return;
-    }
-    navigator.permissions.query({name:'geolocation'}).then(p=>{
-      const map = {granted:['許可済み','oklch(0.55 0.13 75)'], denied:['拒否','oklch(0.5 0.1 150)'], prompt:['未確認（初回アクセス時に確認）','oklch(0.5 0.01 40)']};
-      const hit = map[p.state] || ['不明','oklch(0.5 0.01 40)'];
-      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:hit[0], color:hit[1], rows:[],
-        note:'これはこのページ単体に対する許可状態です。端末全体やアプリごとの位置情報の許可は「設定 → プライバシーとセキュリティ → 位置情報サービス」で確認・変更します。', noteColor:'oklch(0.5 0.01 40)'}}}));
-    }).catch(()=>{
-      this.setState(s=>({net:{...s.net, geoperm:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+    this._emit('tracking', {
+      level:'info', confidence:'high', severity:'low',
+      text:'DNT '+dnt+' ／ GPC '+gpc,
+      rows:[{label:'Do Not Track', value:dnt}, {label:'Global Privacy Control', value:gpc}],
+      why:'いずれも拒否の意思をHTTPヘッダーで伝えるだけの仕組みで、サイト側に遵守義務はありません。未設定でも直ちに危険という項目ではないため、重要度は低に置いています。',
+      note:'DNTは事実上ほとんどのサイトに無視されており、むしろ「DNTを送っている」こと自体が指紋の材料になるという指摘もあります。GPCは一部の法域（米カリフォルニア州など）で法的効力を持ちます。有効であっても追跡されない保証にはなりません。',
     });
   }
-  _checkAttPerm(){
-    this.setState(s=>({net:{...s.net, attperm:{
-      loading:false, text:'Webからは取得不可', color:'oklch(0.5 0.01 40)', rows:[],
-      note:'ATTはネイティブアプリ専用の枠組みで、ブラウザに相当するAPIがありません。実際の許可状態は「設定 → プライバシーとセキュリティ → トラッキング」で確認します。ここをオフにしておくと、アプリごとに許可を求める仕組みそのものを止められます（チェックリストにも項目として入れてあります）。', noteColor:'oklch(0.5 0.01 40)',
-    }}}));
+
+  _checkGeoPerm(){
+    if(!navigator.permissions){
+      this._emit('geoperm', {level:'unknown', confidence:'more', severity:'none', text:'このブラウザは非対応',
+        why:'Permissions API が利用できませんでした。', note:'許可状態は端末の設定から確認してください。'});
+      return;
+    }
+    return navigator.permissions.query({name:'geolocation'}).then(p=>{
+      const map = {
+        granted:['許可済み','check','low'],
+        denied:['拒否','ok','none'],
+        prompt:['未確認（初回アクセス時に確認）','info','none'],
+      };
+      const hit = map[p.state] || ['不明','unknown','none'];
+      this._emit('geoperm', {
+        level:hit[1], confidence:'high', severity:hit[2], text:hit[0],
+        why: p.state==='granted' ? 'このページに位置情報を渡す許可が出ています。' : (p.state==='denied' ? 'このページには位置情報を渡さない設定です。' : 'まだ許可も拒否もしていません。'),
+        note:'これはこのページ単体に対する許可状態です。端末全体やアプリごとの位置情報の許可は「設定 → プライバシーとセキュリティ → 位置情報サービス」で確認・変更します。',
+        fix: p.state==='granted' ? 'Safari の 設定 → Safari → Webサイトの設定 → 位置情報 から取り消せます。' : null,
+      });
+    }).catch(()=>{
+      this._emit('geoperm', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'許可状態の問い合わせに失敗しました。', note:'異常を検出したという意味ではありません。'});
+    });
   }
+
+  _checkAttPerm(){
+    this._emit('attperm', {
+      level:'info', confidence:'more', severity:'none', text:'Webからは取得不可',
+      why:'ATTはネイティブアプリ専用の枠組みで、ブラウザに相当するAPIが存在しません。',
+      note:'アプリが他社のアプリやサイトをまたいで行動を追跡してよいか、というiOS側の設定です。実際の状態は端末側でしか確認できません。',
+      fix:'「設定 → プライバシーとセキュリティ → トラッキング」で確認します。ここをオフにしておくと、アプリごとに許可を求める仕組みそのものを止められます（チェックリストにも項目として入れてあります）。',
+    });
+  }
+
   async _checkVpnStatus(ipInfoPromise, dnsInfoPromise){
     try{
       let warp = false;
@@ -1169,33 +1371,46 @@ class Component extends DCLogic {
       const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
       const dnsInfo = await Promise.resolve(dnsInfoPromise).catch(()=>null);
       const org = (ipInfo && ipInfo.org) || '';
-      // 出口IPの組織名が取れなくても、同一ネットワークのリゾルバの所在文字列に
-      // 組織名が入っていることがある（例：「Japan - Owl Limited」）。そこも使う。
       const geoOrg = (dnsInfo && dnsInfo.sameNet && dnsInfo.geo) ? dnsInfo.geo : '';
       const orgForMatch = org || geoOrg;
       const sameNetDns = !!(dnsInfo && dnsInfo.sameNet);
       let provider = null;
       for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(orgForMatch)){ provider = name; break; } }
       const isDc = !!(orgForMatch && DATACENTER_ORG_RE.test(orgForMatch));
-      let text, color;
-      if(provider){ text = provider+' 経由と推定'; color = 'oklch(0.5 0.1 150)'; }
-      else if(warp){ text = 'Cloudflare WARP 経由と推定'; color = 'oklch(0.5 0.1 150)'; }
-      else if(isDc){ text = 'データセンター経由（VPNの可能性が高い・事業者は特定できず）'; color = 'oklch(0.5 0.1 150)'; }
-      else if(sameNetDns){ text = 'VPN経由の可能性が高い（DNSリゾルバが出口と同一ネットワーク）'; color = 'oklch(0.5 0.1 150)'; }
-      else if(org){ text = '一般ISP回線に見えます（VPN未使用の可能性）'; color = 'oklch(0.55 0.13 75)'; }
-      else { text = '判定材料が得られませんでした'; color = 'oklch(0.5 0.01 40)'; }
-      const rows = [
-        {label:'出口IPの登録組織名', value: org || (geoOrg ? geoOrg : '—')},
-        {label:'DNSリゾルバとの関係', value: sameNetDns ? '出口と同一ネットワーク' : '—'},
-        {label:'Cloudflare WARP', value: warp ? '有効' : '無効'},
-      ];
-      this.setState(s=>({net:{...s.net, vpnstatus:{
-        loading:false, text, color, rows,
-        note: '出口IPの登録組織名とDNSリゾルバの位置関係からの推定です。組織名にVPN事業者名が入っていれば事業者まで特定できますが、多くの事業者はサーバーを借りて運用しているため、実際には貸主であるホスティング事業者名しか現れません。その場合「VPNは経由しているが事業者は特定できない」までが限界です。ブラウザからVPN接続の有無を確定判定する手段はありません。',
-        noteColor:'oklch(0.5 0.01 40)',
-      }}}));
+      let level, sev, text, why;
+      if(provider){
+        level='ok'; sev='none'; text=provider+' 経由と推定';
+        why='出口IPの登録組織名に事業者名が含まれています（'+orgForMatch+'）。';
+      } else if(warp){
+        level='ok'; sev='none'; text='Cloudflare WARP 経由と推定';
+        why='Cloudflare の trace が WARP 有効を返しました。';
+      } else if(isDc){
+        level='ok'; sev='none'; text='データセンター経由（事業者は特定できず）';
+        why='出口IPの登録組織（'+orgForMatch+'）はホスティング事業者です。一般家庭回線ではないため、VPNまたは類似の経路を通っていると考えられます。多くのVPN事業者はサーバーを借りて運用しているため、事業者名までは分かりません。';
+      } else if(sameNetDns){
+        level='ok'; sev='none'; text='VPN経由の可能性が高い';
+        why='DNSリゾルバが出口IPと同一ネットワーク上にあります。一般ISPではまず起きない構成です。';
+      } else if(org){
+        level='check'; sev='medium'; text='一般ISP回線に見えます';
+        why='出口IPの登録組織（'+org+'）がVPN事業者にもホスティング事業者にも該当しません。VPNを使っている想定であれば、接続が切れている可能性があります。';
+      } else {
+        level='unknown'; sev='none'; text='判定材料が得られませんでした';
+        why='出口IPの登録組織を取得できませんでした。';
+      }
+      this._emit('vpnstatus', {
+        level, confidence:'est', severity:sev, text,
+        rows:[
+          {label:'出口IPの登録組織名', value: org || geoOrg || '—'},
+          {label:'DNSリゾルバとの関係', value: sameNetDns ? '出口と同一ネットワーク' : '—'},
+          {label:'Cloudflare WARP', value: warp ? '有効' : '無効'},
+        ],
+        why,
+        note:'ブラウザからVPN接続の有無を確定判定する手段はないため、この項目は必ず推定です。VPNを使う意図がない場合、「一般ISP回線」は正常な状態です。ネイティブアプリなら NWPathMonitor でトンネルの有無自体を確実に判定できますが、どの事業者かはやはり分かりません。',
+        fix: level==='check' ? 'VPNを使う想定であれば、VPNアプリの接続状態とキルスイッチの設定を確認してください。' : null,
+      });
     }catch(e){
-      this.setState(s=>({net:{...s.net, vpnstatus:{loading:false, text:'取得できませんでした', color:'oklch(0.5 0.01 40)', rows:[]}}}));
+      this._emit('vpnstatus', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'判定に必要な情報を取得できませんでした。', note:'異常を検出したという意味ではありません。'});
     }
   }
 
@@ -1275,6 +1490,7 @@ class Component extends DCLogic {
       }));
 
       const netDefs = [
+        {id:'summary', title:'総合評価', desc:'各項目の判定を集計し、優先して直すべきものから順に並べます。「異常」は実際に測って確認できたもの、「要確認」は間接的な材料からの推定で、断定はしていません。まずここを見て、対応が必要な項目があるかだけ把握してください。個別の根拠は下の各項目に「この判定になった理由」として書いてあります。'},
         {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'インターネット側から見えているグローバルIPアドレスと、そのアドレスに登録されているISP・組織名・おおよその所在地です。VPN接続下では、自宅回線ではなく接続先サーバーのISPと所在地が表示されます。自宅の地域や契約しているISPの名前が出ている場合、その通信はVPNを通っていません。'},
         {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6アドレスが割り当てられている場合の詳細です。割り当て自体は正常な状態で、問題ではありません。ただしVPNがIPv6に対応していない構成だと、IPv4はVPNを通っているのにIPv6だけ素通しになり、こちらから実IPが露出します。上のIPv4診断と組織名・国が一致しているかで判別できます。'},
         {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'ドメイン名をIPアドレスに変換した実際のDNSリゾルバを特定します。通信本体がVPNを通っていても、名前解決だけがISPのリゾルバに流れていれば、閲覧したドメインの一覧はISPに渡ります。VPN経由なら事業者自身のリゾルバが使われるため、出口IPと同一ネットワークか、同一組織名になるはずです。'},
@@ -1289,7 +1505,8 @@ class Component extends DCLogic {
         {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報などから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。取得できる信号が少ないほど、またCanvasやGPU名が取得不可になっているほど、ブラウザ側の指紋対策が効いています。'},
         {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準値は配信データ側で管理しているため、新しいOSが出ればデータ更新だけで全端末の判定が変わります。'},
         {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているデータ量の実測です。localStorage・Cookie・IndexedDB・Cache Storage・Service Worker の使用状況を並べます。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。他サイトの保存内容はブラウザが分離しているので、こちらからは見えません。'},
-        {id:'history', title:'前回からの変化（劣化検知）', desc:'診断結果を端末内に記録し、前回と比べて変化した項目だけを並べます。悪化と判断できるもの（VPNが切れた、DNSが別組織に変わった、WebRTCリークが発生した、遮断できたトラッカーが減った、OSが基準を下回った）には印を付けます。設定が勝手に元へ戻る類の事故は、定点観測しないと気づけません。'},
+        {id:'history', title:'前回からの変化（劣化検知）', desc:'診断結果を端末内に記録し、前回と比べて判定の段階が変わった項目だけを並べます。値そのものの変化（出口IPや指紋ハッシュ）は、回線や環境が変われば当然変わるため悪化としては扱いません。設定が勝手に元へ戻る類の事故は、定点観測しないと気づけません。'},
+        {id:'scope', title:'この診断で分かること・分からないこと', desc:'すべて「正常」でも、それはブラウザから観測できる範囲が正常というだけで、プライバシー全体の保証ではありません。VPN事業者のログ保持、端末のマルウェア感染、HTTPSの傍受、他アプリの設定値などは、この診断の守備範囲の外にあります。過信を避けるために最後に必ず読んでください。'},
       ];
       netChecksOut = netDefs.map(d=>{
         const r = (s.net && s.net[d.id]) || {};
