@@ -239,6 +239,36 @@ input,select,textarea{font-family:inherit}
       </sc-if>
 
       <sc-if value="{{ isNetworkStarted }}">
+
+      <div style="border:2px solid oklch(0.22 0.01 40);border-radius:6px;padding:17px 16px 15px;margin-bottom:20px;background:oklch(0.95 0.008 82)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+          <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.14em;white-space:nowrap">SUMMARY</div>
+          <div style="flex:1;height:2px;background:repeating-linear-gradient(90deg,oklch(0.4 0.01 60) 0,oklch(0.4 0.01 60) 5px,transparent 5px,transparent 9px)"></div>
+        </div>
+        <div style="font:700 17px 'Source Serif 4',serif;margin-bottom:7px">{{ summaryCard.title }}</div>
+        <sc-if value="{{ summaryCard.loading }}">
+          <div style="display:flex;align-items:center;gap:8px;font:400 12px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40)">
+            <span style="display:inline-block;width:10px;height:10px;border:1.5px solid oklch(0.5 0.18 25);border-right-color:transparent;border-radius:50%;animation:pa-spin .6s linear infinite"></span>集計中...
+          </div>
+        </sc-if>
+        <sc-if value="{{ summaryCard.hasResultText }}">
+          <div style="display:inline-block;font:700 13.5px 'IBM Plex Mono',monospace;color:{{ summaryCard.resultColor }};border:2px solid {{ summaryCard.resultColor }};border-radius:3px;padding:5px 10px;margin-bottom:4px">{{ summaryCard.resultText }}</div>
+        </sc-if>
+        <sc-if value="{{ summaryCard.hasRows }}">
+          <div style="margin-top:10px;border-top:1px solid oklch(0.7 0.01 60);padding-top:9px">
+            <sc-for list="{{ summaryCard.rows }}" as="row" hint-placeholder-count="4">
+              <div style="padding:7px 0;border-bottom:1px dotted oklch(0.78 0.01 62)">
+                <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);letter-spacing:.05em;margin-bottom:3px">{{ row.label }}</div>
+                <div style="font:600 12.5px 'IBM Plex Mono',monospace;color:oklch(0.22 0.01 40);line-height:1.55">{{ row.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ summaryCard.hasNote }}"><div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-top:9px">{{ summaryCard.note }}</div></sc-if>
+      </div>
+
+      <div style="font:700 10.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.45 0.01 40);margin-bottom:10px">項目別の詳細</div>
+
       <sc-for list="{{ netChecks }}" as="c" hint-placeholder-count="3">
         <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:15px;margin-bottom:12px;background:oklch(0.99 0.005 85)">
           <div style="font:700 14px 'Source Serif 4',serif;margin-bottom:5px">{{ c.title }}</div>
@@ -1395,7 +1425,7 @@ class Component extends DCLogic {
     const onboardingDisabled = !Object.values(s.tempSel).some(Boolean);
 
     let appGroups = [], nHigh=0, nMed=0, nLow=0, nDone=0, totalItems=0, nNew=0;
-    let netChecksOut = [], accountCards = [];
+    let netChecksOut = [], accountCards = [], summaryCardOut = {loading:true, title:'総合評価', desc:'', hasResultText:false, resultText:'', resultColor:'', hasNote:false, note:'', noteColor:'', hasRows:false, rows:[]};
 
     if(showMain){
       const allowedSev = SEV_ALLOW[s.level] || SEV_ALLOW.standard;
@@ -1466,7 +1496,7 @@ class Component extends DCLogic {
         {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているデータ量の実測です。localStorage・Cookie・IndexedDB・Cache Storage・Service Worker の使用状況を並べます。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。他サイトの保存内容はブラウザが分離しているので、こちらからは見えません。'},
         {id:'scope', title:'この診断で分かること・分からないこと', desc:'すべて「正常」でも、それはブラウザから観測できる範囲が正常というだけで、プライバシー全体の保証ではありません。VPN事業者のログ保持、端末のマルウェア感染、HTTPSの傍受、他アプリの設定値などは、この診断の守備範囲の外にあります。過信を避けるために最後に必ず読んでください。'},
       ];
-      netChecksOut = netDefs.map(d=>{
+      const toCard = d => {
         const r = (s.net && s.net[d.id]) || {};
         return {
           id:d.id, title:d.title, desc:d.desc,
@@ -1476,7 +1506,10 @@ class Component extends DCLogic {
           hasNote: !!r.note, note:r.note||'', noteColor: r.noteColor||'oklch(0.5 0.01 40)',
           hasRows: !!(r.rows && r.rows.length), rows: r.rows||[],
         };
-      });
+      };
+      // 総合評価は他の項目とは役割が違うので、専用ブロックとして別に描く。
+      summaryCardOut = toCard(netDefs.find(d=>d.id==='summary'));
+      netChecksOut = netDefs.filter(d=>d.id!=='summary').map(toCard);
     }
 
     const widgetCount = nHigh + nMed + nLow;
@@ -1583,6 +1616,7 @@ class Component extends DCLogic {
       openNewAccount: ()=>this.openNewAccount(),
 
       netChecks: netChecksOut,
+      summaryCard: summaryCardOut,
       runDiagnostics: ()=>this.runDiagnostics(),
       ...notifyProps,
     };
