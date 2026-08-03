@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>iPhone個人情報保護監査アプリ</title>
-<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断。データは一切保存せず、外部へも送信しません。">
+<meta name="description" content="端末のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・ネットワーク診断。データは一切保存せず、外部へも送信しません。">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -35,38 +35,6 @@ input,select,textarea{font-family:inherit}
       <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 14px">設定</h3>
       <div style="display:flex;justify-content:space-between;font:400 12.5px/1.7 'IBM Plex Mono',monospace;padding:9px 0;border-bottom:1px dotted oklch(0.7 0.01 60);margin-bottom:16px"><span style="color:oklch(0.45 0.01 40)">データバージョン</span><b style="font-weight:600">{{ dataVersion }}</b></div>
       <button onClick="{{ closeSheet }}" style="width:100%;margin-top:8px;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">閉じる</button>
-    </sc-if>
-
-    <sc-if value="{{ isAccountFormSheet }}">
-      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.12em;margin-bottom:6px">LEDGER ENTRY</div>
-      <h3 style="font:700 19px 'Source Serif 4',serif;margin:0 0 16px">{{ accountFormTitle }}</h3>
-      <div style="margin-bottom:13px">
-        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">サービス名</label>
-        <input ref="{{ serviceRef }}" defaultValue="{{ formServiceDefault }}" placeholder="例：WordPress、note、Notion" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'Source Serif 4',serif;font-size:13.5px" />
-      </div>
-      <div style="margin-bottom:13px">
-        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">ログイン方法</label>
-        <select ref="{{ methodRef }}" defaultValue="{{ formMethodDefault }}" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'IBM Plex Mono',monospace;font-size:12.5px">
-          <sc-for list="{{ methodOptions }}" as="m" hint-placeholder-count="4">
-            <option value="{{ m }}">{{ m }}</option>
-          </sc-for>
-        </select>
-      </div>
-      <div style="margin-bottom:13px">
-        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">状態</label>
-        <select ref="{{ statusRef }}" defaultValue="{{ formStatusDefault }}" style="width:100%;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'IBM Plex Mono',monospace;font-size:12.5px">
-          <option value="active">連携中</option>
-          <option value="unlinked">解除済み</option>
-        </select>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:6px">メモ（任意）</label>
-        <textarea ref="{{ memoRef }}" defaultValue="{{ formMemoDefault }}" placeholder="例：仕事用アカウント、要解除検討中 など" style="width:100%;min-height:64px;padding:10px 11px;background:oklch(0.95 0.006 85);border:1px solid oklch(0.78 0.01 60);border-radius:6px;color:oklch(0.22 0.01 40);font-family:'Source Serif 4',serif;font-size:13px;resize:vertical"></textarea>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button onClick="{{ closeSheet }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:none;color:oklch(0.45 0.01 40);font:500 12px 'IBM Plex Mono',monospace;cursor:pointer">キャンセル</button>
-        <button onClick="{{ saveAccount }}" style="flex:1;padding:11px;border-radius:7px;border:1px solid oklch(0.22 0.01 40);background:oklch(0.22 0.01 40);color:oklch(0.97 0.008 85);font:700 12px 'IBM Plex Mono',monospace;cursor:pointer">保存</button>
-      </div>
     </sc-if>
 
   </div>
@@ -203,33 +171,6 @@ input,select,textarea{font-family:inherit}
       </sc-if>
     </sc-if>
 
-    <sc-if value="{{ isAccountsView }}">
-      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">どのサービスに、どのアカウントでログインしているかを記録する<b>その場でのメモ</b>です。パスワードは扱いません。「LINEとYahoo!の連携は解除したか」「GitHubアカウントでWordPressにログインしている」といった、SSOの結びつきを棚卸しするためのものです。<b>アプリを閉じる、またはリロードすると消えます。</b>継続して使いたい場合は、確認のたびに手動で記録してください。</p>
-      <button onClick="{{ openNewAccount }}" style="width:100%;padding:13px;border-radius:7px;border:1px dashed oklch(0.7 0.01 60);background:none;color:oklch(0.4 0.01 40);font:600 12.5px 'IBM Plex Mono',monospace;cursor:pointer;margin-bottom:16px">＋ 連携を記録する</button>
-
-      <sc-for list="{{ accountCards }}" as="acc" hint-placeholder-count="2">
-        <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:14px 15px;margin-bottom:12px;background:oklch(0.99 0.005 85)">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-            <div style="font:700 15px 'Source Serif 4',serif">{{ acc.service }}</div>
-            <div style="font:700 9.5px 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:2px;border:1.5px solid {{ acc.statusColor }};color:{{ acc.statusColor }};transform:{{ acc.statusRotate }}">{{ acc.statusLabel }}</div>
-          </div>
-          <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin-bottom:4px">ログイン方法： <b style="color:oklch(0.22 0.01 40);font-weight:600">{{ acc.method }}</b></div>
-          <sc-if value="{{ acc.hasMemo }}"><div style="font:italic 400 12px/1.7 'Source Serif 4',serif;color:oklch(0.4 0.01 40);margin-top:6px">{{ acc.memo }}</div></sc-if>
-          <div style="display:flex;gap:14px;margin-top:10px">
-            <span onClick="{{ acc.edit }}" style="font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:2px;cursor:pointer">編集</span>
-            <span onClick="{{ acc.del }}" style="font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);text-decoration:underline;text-underline-offset:2px;cursor:pointer">削除</span>
-          </div>
-        </div>
-      </sc-for>
-
-      <sc-if value="{{ accountsEmpty }}">
-        <div style="text-align:center;padding:46px 16px;color:oklch(0.5 0.01 40);font:400 13px 'Source Serif 4',serif">
-          <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:oklch(0.55 0.01 40);margin-bottom:10px">[ EMPTY ]</div>
-          まだ何も記録されていません。
-        </div>
-      </sc-if>
-      <p style="font:400 10.5px/1.8 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 40);margin-top:18px;text-align:center">このメモはどこにも保存されません。閉じる・リロードすると消えます。エクスポート機能はありません。</p>
-    </sc-if>
 
     <sc-if value="{{ isNetworkView }}">
       <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 18px">VPN接続やプライバシー保護が正常に機能しているか確認します。<b>診断結果の送信・保存は行いません。</b>ただし診断のため、あなたのIPアドレスが api.ipify.org・ipwho.is・www.cloudflare.com・edns.ip-api.com・トラッカー遮断テストの接続先（Google・Meta・Criteo・Taboola）に渡ります。どの項目が外部に照会するかは、各カードのバッジに表示しています。</p>
@@ -256,6 +197,7 @@ input,select,textarea{font-family:inherit}
           </div>
         </sc-if>
         <sc-if value="{{ summaryCard.hasChips }}">
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:6px">判定対象 全{{ summaryCard.total }}項目の内訳</div>
           <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px">
             <sc-for list="{{ summaryCard.chips }}" as="ch" hint-placeholder-count="3">
               <div style="display:flex;align-items:baseline;gap:8px">
@@ -394,7 +336,6 @@ const APP_DATA = {"version":"2026-07-30b","minVersions":{"ios":"26.0","safari":"
 ]}
 ]};
 
-const METHODS = ['Google','Apple','GitHub','LINE','Yahoo! JAPAN','メールアドレス','その他'];
 const SEV_LABEL = {high:'要対応',medium:'推奨',low:'任意'};
 const LEVELS = [
   {id:'basic', label:'基本', desc:'「要対応」事項のみ'},
@@ -500,20 +441,14 @@ class Component extends DCLogic {
       tempLevel: 'standard',
       done: [],
       seen: allIds,
-      accounts: [],
       view: 'check',
       tab: 'todo',
       activeSheet: null,
-      editingAccountId: null,
       net: null,
       data: APP_DATA,
       netStarted: false,
       prevCanvas: null,
     };
-    this.serviceRef = React.createRef();
-    this.methodRef = React.createRef();
-    this.statusRef = React.createRef();
-    this.memoRef = React.createRef();
   }
 
   toggleTemp(id){ this.setState(s=>({tempSel:{...s.tempSel,[id]:!s.tempSel[id]}})); }
@@ -556,7 +491,7 @@ class Component extends DCLogic {
   }
 
   openSettings(){ this.setState({activeSheet:'settings'}); }
-  closeSheet(){ this.setState({activeSheet:null, editingAccountId:null}); }
+  closeSheet(){ this.setState({activeSheet:null}); }
   closeSheetBackdrop(e){ if(e.target===e.currentTarget) this.closeSheet(); }
   stopProp(e){ e.stopPropagation(); }
 
@@ -574,30 +509,6 @@ class Component extends DCLogic {
         this.setState({data:fresh});
       }
     }catch(e){ /* 取得できない場合は内蔵データのまま静かに継続 */ }
-  }
-
-  openNewAccount(){ this.setState({activeSheet:'accountForm', editingAccountId:null}); }
-  openEditAccount(id){ this.setState({activeSheet:'accountForm', editingAccountId:id}); }
-  deleteAccount(id){
-    if(!confirm('この記録を削除しますか？')) return;
-    this.setState(s=>({accounts:s.accounts.filter(a=>a.id!==id)}));
-  }
-  saveAccount(){
-    const service = this.serviceRef.current.value.trim();
-    if(!service){ alert('サービス名を入力してください。'); return; }
-    const method = this.methodRef.current.value;
-    const status = this.statusRef.current.value;
-    const memo = this.memoRef.current.value.trim();
-    const editingId = this.state.editingAccountId;
-    this.setState(s=>{
-      let accounts;
-      if(editingId){
-        accounts = s.accounts.map(a=>a.id===editingId?{...a,service,method,status,memo}:a);
-      } else {
-        accounts = [{id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), service, method, status, memo}, ...s.accounts];
-      }
-      return {accounts, activeSheet:null, editingAccountId:null};
-    });
   }
 
   // ---- 判定モデル ----------------------------------------------------
@@ -620,7 +531,7 @@ class Component extends DCLogic {
       note: (o.note||'') + (o.fix ? '　【改善するには】' + o.fix : ''),
       noteColor: v.color,
       _level: o.level, _severity: o.severity || 'none',
-      _chips: o.chips || null,
+      _chips: o.chips || null, _total: o.total,
     }}}));
   }
 
@@ -693,7 +604,9 @@ class Component extends DCLogic {
     }));
     const risks = entries.filter(e=>e.level==='risk').sort((a,b)=>SEV_ORDER[a.severity]-SEV_ORDER[b.severity]);
     const checks = entries.filter(e=>e.level==='check').sort((a,b)=>SEV_ORDER[a.severity]-SEV_ORDER[b.severity]);
-    const oks = entries.filter(e=>e.level==='ok');
+    // info（材料不足などで判定を出さない）は「懸念材料なし」という点で
+    // okと実質同じなので、母数の内訳が食い違わないようokにまとめる。
+    const oks = entries.filter(e=>e.level==='ok' || e.level==='info');
     const unknowns = entries.filter(e=>e.level==='unknown');
     const level = risks.length ? 'risk' : (checks.length ? 'check' : 'ok');
     const rows = [];
@@ -706,10 +619,14 @@ class Component extends DCLogic {
       // 単一行の badge だと「要確認：異常 0 件／要確認 2 件／正常 3 件」のように
       // 「要確認」が2回出て読みにくいため、text は出さず色分けした3行の
       // 内訳（chips）を専用ブロックとして表示する。
-      text: '', chips: [
+      text: '', total: entries.length, chips: [
         {label:'異常', count: risks.length, color: VERDICT.risk.color},
         {label:'要確認', count: checks.length, color: VERDICT.check.color},
         {label:'正常', count: oks.length, color: VERDICT.ok.color},
+        // 判定不能（unknown）は通常出ないが、出た場合にchips合計が母数と
+        // 食い違うと元の「数が合わない」問題を再発するため、0件の間は
+        // 表示しないが1件以上あれば4番目のchipとして出す。
+        ...(unknowns.length ? [{label:'判定不能', count: unknowns.length, color: VERDICT.unknown.color}] : []),
       ],
       rows,
       note:'直接測れたものだけを異常とし、推定は要確認で止めます（誤検知を避ける方針）。出口IP・指紋ハッシュ・遮断結果は回線状況で変動するため、気になる項目は「再診断」で確かめてください。結果はこのページを離れると消えます。',
@@ -820,22 +737,28 @@ class Component extends DCLogic {
     if(sig.canvas && !canvasRandomized) identifying.push('Canvas描画');
     if(sig.gpu && !gpuGeneric) identifying.push('固有のGPU名');
     if(sig.fonts > 12) identifying.push('フォント構成');
-    let level, sev, why;
+    // text には判定対象そのもの（識別信号）を出す。ハッシュ自体は判定対象
+    // ではなく単なる要約IDなので、「要確認：a1b2c3d4」のようにハッシュ値が
+    // 問題であるかのように読める表示は避け、rowsの参考情報に格下げする。
+    let level, sev, why, text;
     if(rfpActive || (gpuGeneric && canvasRandomized)){
       level='ok'; sev='low';
+      text='対策あり（識別しにくい状態）';
       why='値は取得できますが、GPU名の標準化・画面サイズの丸め・Canvasのランダム化といった対策が働いています。多くの利用者が同じ値を返すため、識別には使いにくい状態です。';
     } else if(identifying.length >= 2){
       level='check'; sev='medium';
+      text='識別力の高い信号を'+identifying.length+'種類検出（'+identifying.join('・')+'）';
       why='識別力の高い信号（'+identifying.join('・')+'）が、標準化もランダム化もされないまま取得できました。Cookieを消してもこの組み合わせで同一端末と判定されうる状態です。';
     } else {
       level='info'; sev='low';
+      text='識別力の高い信号は限定的（取得 '+present.length+' 種類）';
       why='識別力の高い信号は限定的でした。取得できた信号は '+present.length+' 種類です。';
     }
     // 次回の再診断でランダム化を検出できるよう、メモリ上にだけ憶えておく
     // （保存はしない。リロードで消える）。
     this.setState({prevCanvas: {canvas: sig.canvas, screen: sig.screen}});
     this._emit('fingerprint', {
-      level, confidence:'est', severity:sev, text: combined,
+      level, confidence:'est', severity:sev, text,
       rows: [
         {label:'取得できた識別信号', value: present.length+' 種類'},
         {label:'Canvas描画のハッシュ', value: (sig.canvas || '取得不可（対策が効いています）') + (canvasRandomized ? '（前回と異なる＝ランダム化あり）' : '')},
@@ -848,6 +771,7 @@ class Component extends DCLogic {
         {label:'Do Not Track', value: dnt + (dnt==='有効' ? '（送信すること自体が識別の材料になります）' : '')},
         {label:'Global Privacy Control', value: gpc},
         {label:'指紋対策の兆候', value: (rfp && rfp.length) ? rfp.join('・') : '検出されず'},
+        {label:'現在のフィンガープリント値（参考・端末内で計算）', value: combined},
       ],
       why,
       note:'判定基準は「取得できるか」ではなく「他人と違う値か」です。標準化やランダム化が働いていれば、値が取れても識別には使えません。母集団の統計は持たないため「何人に1人」は出しません。ハッシュは端末内で計算するだけで送信しません。タイムゾーン・DNT・GPCも独立設定ではなく指紋の材料としてここに含めています（DNTは事実上無視され、GPCは一部法域のみ有効）。',
@@ -1187,7 +1111,7 @@ class Component extends DCLogic {
     const onboardingDisabled = !Object.values(s.tempSel).some(Boolean);
 
     let appGroups = [], nHigh=0, nMed=0, nLow=0, nDone=0, totalItems=0, nNew=0;
-    let netChecksOut = [], accountCards = [], summaryCardOut = {loading:true, title:'総合評価', desc:'', hasResultText:false, resultText:'', resultColor:'', hasNote:false, note:'', noteColor:'', hasRows:false, rows:[]};
+    let netChecksOut = [], summaryCardOut = {loading:true, title:'総合評価', desc:'', hasResultText:false, resultText:'', resultColor:'', hasNote:false, note:'', noteColor:'', hasRows:false, rows:[]};
 
     if(showMain){
       const allowedSev = SEV_ALLOW[s.level] || SEV_ALLOW.standard;
@@ -1233,16 +1157,6 @@ class Component extends DCLogic {
 
       if(s.tab==='new'){ /* mark seen lazily handled on view */ }
 
-      accountCards = s.accounts.map(a=>({
-        id:a.id, service:a.service, method:a.method,
-        statusLabel: a.status==='unlinked' ? '解除済み' : '連携中',
-        statusColor: a.status==='unlinked' ? 'oklch(0.5 0.1 150)' : 'oklch(0.55 0.13 75)',
-        statusRotate: 'rotate(-2deg)',
-        hasMemo: !!a.memo, memo:a.memo||'',
-        edit: () => this.openEditAccount(a.id),
-        del: () => this.deleteAccount(a.id),
-      }));
-
       const netDefs = [
         {id:'summary', title:'総合評価', desc:'各項目の判定を集計し、優先度順に並べます。「異常」は実測で確認できたもの、「要確認」は推定で断定はしていません。個別の根拠は各項目の「この判定になった理由」に書いてあります。', dep:[]},
         {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'外部から見えているグローバルIPアドレスと、登録ISP・所在地・到達エッジ拠点です。良し悪しの判定は行いません——ブラウザからVPN接続の有無を確定判定する手段がないためです。', dep:['api.ipify.org','ipwho.is','www.cloudflare.com']},
@@ -1271,7 +1185,7 @@ class Component extends DCLogic {
           resultText: r.text||'', resultColor: r.color||'oklch(0.22 0.01 40)',
           hasNote: !!r.note, note:r.note||'', noteColor: r.noteColor||'oklch(0.5 0.01 40)',
           hasRows: !!(r.rows && r.rows.length), rows: r.rows||[],
-          hasChips: !!(r._chips && r._chips.length), chips: r._chips||[],
+          hasChips: !!(r._chips && r._chips.length), chips: r._chips||[], total: r._total||0,
         };
       };
       // 総合評価は他の項目とは役割が違うので、専用ブロックとして別に描く。
@@ -1281,7 +1195,6 @@ class Component extends DCLogic {
 
     const navTabs = [
       {key:'check', label:'設定状況確認'},
-      {key:'accounts', label:'連携アカウント台帳'},
       {key:'network', label:'ネットワーク診断'},
     ].map(t=>{
       const active = s.view===t.key;
@@ -1308,26 +1221,14 @@ class Component extends DCLogic {
       weight: s.tab===t.key ? '700' : '400',
     }));
 
-    const editingAccount = s.editingAccountId ? s.accounts.find(a=>a.id===s.editingAccountId) : null;
-
     return {
       hasSheet: !!s.activeSheet,
-      sheetKey: (s.activeSheet||'none')+':'+(s.editingAccountId||'new'),
+      sheetKey: s.activeSheet||'none',
       isSettingsSheet: s.activeSheet==='settings',
-      isAccountFormSheet: s.activeSheet==='accountForm',
       closeSheetBackdrop: (e)=>this.closeSheetBackdrop(e),
       closeSheet: ()=>this.closeSheet(),
       openSettings: ()=>this.openSettings(),
       dataVersion: DATA.version,
-
-      accountFormTitle: editingAccount ? '連携を編集' : '連携を記録',
-      serviceRef:this.serviceRef, methodRef:this.methodRef, statusRef:this.statusRef, memoRef:this.memoRef,
-      formServiceDefault: editingAccount ? editingAccount.service : '',
-      formMethodDefault: editingAccount ? editingAccount.method : METHODS[0],
-      formStatusDefault: editingAccount ? editingAccount.status : 'active',
-      formMemoDefault: editingAccount ? (editingAccount.memo||'') : '',
-      methodOptions: METHODS,
-      saveAccount: ()=>this.saveAccount(),
 
       isOnboarding, showMain,
       onboardingGroups, onboardingDisabled,
@@ -1338,7 +1239,7 @@ class Component extends DCLogic {
       startCheck: ()=>this.startCheck(),
 
       navTabs,
-      viewTitle: s.view==='check' ? '設定状況確認' : s.view==='accounts' ? '連携アカウント台帳' : 'ネットワーク診断',
+      viewTitle: s.view==='check' ? '設定状況確認' : 'ネットワーク診断',
       levelOptions: LEVELS.map(lv=>({
         label: lv.label, click: ()=>this.setTempLevel(lv.id),
         borderColor: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
@@ -1347,7 +1248,6 @@ class Component extends DCLogic {
       })),
       levelInfo: LEVELS.map(lv=>({label: lv.label, desc: lv.desc})),
       isCheckView: showMain && s.view==='check',
-      isAccountsView: showMain && s.view==='accounts',
       isNetworkView: showMain && s.view==='network',
       isNetworkStarted: showMain && s.view==='network' && s.netStarted,
       isNetworkNotStarted: showMain && s.view==='network' && !s.netStarted,
@@ -1358,9 +1258,6 @@ class Component extends DCLogic {
       checkIsEmpty: showMain && appGroups.length===0,
       checkEmptyMessage: s.tab==='todo' ? '未対応の項目はありません。' : s.tab==='new' ? '新着はありません。' : s.tab==='done' ? '対応済みの項目はまだありません。' : '対象がありません。',
       resetPicked: ()=>this.resetPicked(),
-
-      accountCards, accountsEmpty: showMain && accountCards.length===0,
-      openNewAccount: ()=>this.openNewAccount(),
 
       netChecks: netChecksOut,
       summaryCard: summaryCardOut,
