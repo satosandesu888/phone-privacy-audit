@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>iPhone個人情報保護監査アプリ</title>
-<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断・通知設定。データは一切保存せず、外部へも送信しません。">
+<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断。データは一切保存せず、外部へも送信しません。">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -79,6 +79,17 @@ input,select,textarea{font-family:inherit}
     <div style="font:700 14px 'Source Serif 4',serif;letter-spacing:.01em">iPhone<br>個人情報保護監査アプリ</div>
   </div>
   <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.18 25);letter-spacing:.14em;margin-bottom:8px">INTAKE FORM</div>
+  <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">監査レベル</div>
+  <div style="display:flex;gap:6px;margin-bottom:10px">
+    <sc-for list="{{ levelOptions }}" as="lv" hint-placeholder-count="3">
+      <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
+    </sc-for>
+  </div>
+  <div style="font:400 11px/1.9 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:24px">
+    <sc-for list="{{ levelInfo }}" as="li" hint-placeholder-count="3">
+      <div>・{{ li.label }}：{{ li.desc }}</div>
+    </sc-for>
+  </div>
   <p style="font:400 13.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 22px">端末に入っているアプリを自動で読み取ることはできません。使っているものを選んでください。</p>
   <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
     <div onClick="{{ toggleAllTemp }}" style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.4 0.01 40);text-decoration:underline;text-underline-offset:3px;cursor:pointer">{{ allTempSelectedLabel }}</div>
@@ -101,13 +112,6 @@ input,select,textarea{font-family:inherit}
       </sc-for>
     </sc-for>
   </div>
-  <div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:oklch(0.4 0.01 40);margin-bottom:9px">監査レベル</div>
-  <div style="display:flex;gap:6px;margin-bottom:8px">
-    <sc-for list="{{ levelOptions }}" as="lv" hint-placeholder-count="3">
-      <div onClick="{{ lv.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ lv.borderColor }};border-radius:6px;background:{{ lv.bg }};font:600 11px 'IBM Plex Mono',monospace;color:{{ lv.color }};cursor:pointer">{{ lv.label }}</div>
-    </sc-for>
-  </div>
-  <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:22px">{{ tempLevelDesc }}</div>
   <button onClick="{{ startCheck }}" disabled="{{ onboardingDisabled }}" style="width:100%;padding:14px;border-radius:8px;border:1px solid oklch(0.22 0.01 40);background:{{ onboardingBtnBg }};color:{{ onboardingBtnColor }};font:700 14px 'IBM Plex Mono',monospace;letter-spacing:.03em;cursor:pointer">確認を開始</button>
   <p style="text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:20px">選択やチェック状況は保存されません。閉じる・リロードすると消えます。</p>
 </div>
@@ -304,75 +308,6 @@ input,select,textarea{font-family:inherit}
           <sc-if value="{{ c.hasNote }}"><div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:{{ c.noteColor }};margin-top:6px">{{ c.note }}</div></sc-if>
         </div>
       </sc-for>
-
-      <div style="border-top:1px solid oklch(0.78 0.01 60);margin:22px 0 18px"></div>
-
-      <div style="font:700 13px 'Source Serif 4',serif;margin-bottom:5px">通知設定</div>
-      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:12px">iPhoneのSafariは、タブで開いている間は通知を出せません。共有ボタンから「ホーム画面に追加」し、そのアイコンから起動すると通知が使えます（iOS 16.4以降）。</div>
-
-      <div onClick="{{ toggleNotifyNew }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
-        <div>
-          <div style="font:600 13px 'Source Serif 4',serif">新着項目の通知</div>
-          <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:2px">配信元が更新され、新しい確認項目が追加された時</div>
-        </div>
-        <div style="width:22px;height:22px;flex:none;border:1.5px solid {{ notifyNewCheckBorder }};border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ notifyNewCheckColor }}">✓</div>
-      </div>
-
-      <div onClick="{{ toggleNotifyRemind }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px dotted oklch(0.78 0.01 60);cursor:pointer">
-        <div>
-          <div style="font:600 13px 'Source Serif 4',serif">定期リマインド</div>
-          <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:2px">前回の点検から一定期間が経過した時</div>
-        </div>
-        <div style="width:22px;height:22px;flex:none;border:1.5px solid {{ notifyRemindCheckBorder }};border-radius:3px;display:grid;place-items:center;font:700 12px 'IBM Plex Mono',monospace;color:{{ notifyRemindCheckColor }}">✓</div>
-      </div>
-
-      <div style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.01 40);margin:14px 0 8px">リマインド間隔</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <sc-for list="{{ remindDaysOptions }}" as="rd" hint-placeholder-count="3">
-          <div onClick="{{ rd.click }}" style="flex:1;text-align:center;padding:9px 4px;border:1.5px solid {{ rd.borderColor }};border-radius:7px;background:{{ rd.bg }};font:600 12px 'IBM Plex Mono',monospace;cursor:pointer">{{ rd.label }}</div>
-        </sc-for>
-      </div>
-
-      <button onClick="{{ testNotify }}" style="width:100%;padding:11px;border-radius:7px;border:1px solid oklch(0.78 0.01 60);background:oklch(0.97 0.008 85);color:oklch(0.45 0.01 40);font:600 12px 'IBM Plex Mono',monospace;cursor:pointer;margin-bottom:22px">テスト通知を送る（ブラウザ通知で代用）</button>
-
-      <div style="border-top:1px solid oklch(0.78 0.01 60);margin:0 0 18px"></div>
-
-      <div style="font:700 13px 'Source Serif 4',serif;margin-bottom:5px">ウィジェットプレビュー</div>
-      <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:14px">iOSのウィジェットはOS管理下のサーフェスのため、HTMLでは実際に動くものは作れません。WidgetKitで実装予定のデザイン案です。更新頻度はOS側の制約で数十分〜数時間おきになります。</div>
-
-      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;padding:4px 0 20px">
-        <div style="text-align:center">
-          <div style="width:135px;height:135px;border-radius:20px;padding:13px;background:oklch(0.22 0.01 40);display:flex;flex-direction:column;justify-content:space-between">
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="width:18px;height:18px;border-radius:5px;background:oklch(0.5 0.18 25);display:grid;place-items:center;font:700 9px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">保</div>
-              <div style="font:400 9px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">個人情報保護確認</div>
-            </div>
-            <div>
-              <div style="font:700 28px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">{{ widgetCount }}</div>
-              <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">未対応</div>
-            </div>
-          </div>
-          <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:8px">小サイズ</div>
-        </div>
-        <div style="text-align:center">
-          <div style="width:288px;height:135px;border-radius:20px;padding:13px;background:oklch(0.22 0.01 40);display:flex;flex-direction:column;justify-content:space-between">
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="width:18px;height:18px;border-radius:5px;background:oklch(0.5 0.18 25);display:grid;place-items:center;font:700 9px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">保</div>
-              <div style="font:400 9px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">個人情報保護確認</div>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:flex-end">
-              <div>
-                <div style="font:700 28px 'IBM Plex Mono',monospace;color:oklch(0.99 0.005 85)">{{ widgetCount }}</div>
-                <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.7 0.01 60)">未対応の項目</div>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;font:600 10.5px 'IBM Plex Mono',monospace;color:oklch(0.5 0.1 150)">
-                <span style="width:7px;height:7px;border-radius:50%;background:oklch(0.5 0.1 150)"></span>VPN 接続中
-              </div>
-            </div>
-          </div>
-          <div style="font:400 10px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:8px">中サイズ（通信状況つき）</div>
-        </div>
-      </div>
 
       <button onClick="{{ runDiagnostics }}" style="width:100%;margin-top:8px;padding:10px;border:none;background:none;color:oklch(0.5 0.01 40);font:400 11.5px 'Source Serif 4',serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer">再診断</button>
       </sc-if>
@@ -573,35 +508,12 @@ class Component extends DCLogic {
       net: null,
       data: APP_DATA,
       netStarted: false,
-      notifyNew: true,
-      notifyRemind: true,
-      remindDays: 30,
       prevCanvas: null,
     };
     this.serviceRef = React.createRef();
     this.methodRef = React.createRef();
     this.statusRef = React.createRef();
     this.memoRef = React.createRef();
-  }
-
-  toggleNotifyNew(){ this.setState(s=>({notifyNew:!s.notifyNew})); }
-  toggleNotifyRemind(){ this.setState(s=>({notifyRemind:!s.notifyRemind})); }
-  setRemindDays(n){ this.setState({remindDays:n}); }
-
-  async testNotify(){
-    if(!('Notification' in window)){
-      // iOS Safari はタブで開いている間は通知APIを持たない。ホーム画面に
-      // 追加したWebアプリとして起動した場合のみ iOS 16.4 以降で使える。
-      alert('このブラウザでは通知を使えません。\n\niPhoneのSafariでは、タブで開いている間は通知を出せない仕様です。共有ボタンから「ホーム画面に追加」して、そのアイコンから起動すると使えるようになります（iOS 16.4以降）。');
-      return;
-    }
-    let perm = Notification.permission;
-    if(perm === 'default'){ perm = await Notification.requestPermission(); }
-    if(perm === 'granted'){
-      new Notification('個人情報保護確認', { body: '新しい確認項目が2件追加されました（テスト通知）' });
-    } else {
-      alert('通知が許可されていません。ブラウザの通知設定を確認してください。\n\nこれはブラウザ通知での代用です。');
-    }
   }
 
   toggleTemp(id){ this.setState(s=>({tempSel:{...s.tempSel,[id]:!s.tempSel[id]}})); }
@@ -800,8 +712,7 @@ class Component extends DCLogic {
         {label:'正常', count: oks.length, color: VERDICT.ok.color},
       ],
       rows,
-      note:'このツールは「断定は実測でしか行わない」方針です。直接測れたものだけを異常とし、間接的な材料からの推定は要確認で止めます。プライバシー診断では、漏れていないのに漏れて見える誤検知のほうが判断を歪める害が大きいためです。その代わり要確認を握りつぶさず必ず表示し、各項目に確信度を併記しています。'
-        + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、気になる項目は「再診断」で数回確かめてください。診断結果はこのページを離れると保存されません。',
+      note:'直接測れたものだけを異常とし、推定は要確認で止めます（誤検知を避ける方針）。出口IP・指紋ハッシュ・遮断結果は回線状況で変動するため、気になる項目は「再診断」で確かめてください。結果はこのページを離れると消えます。',
     });
   }
 
@@ -835,8 +746,7 @@ class Component extends DCLogic {
       text: '遮断（推定） '+blocked+' 件／通過 '+allowed+' 件／判定不能 '+unknown+' 件',
       rows: results.map(r=>({label:r.name, value:label[r.state]})),
       why,
-      note:'実際にリクエストを投げた結果であり、設定値の読み取りではありません。ただし `到達しなかった` は reject されたという事実のみを表し、コンテンツブロッカーによる遮断・一時的な通信エラー・DNS失敗・相手サーバーの障害を区別できません。原因の断定はしていません。遮断の方式（DNSフィルタ・コンテンツブロッカー・ブラウザ内蔵の保護・拡張機能）によっても結果は変わります。時間切れは遮断とは限らないため、遮断側には数えていません。また遮断できても、下の「ブラウザ指紋」による識別は止まりません。'
-        + '　このテストのために、Google・Meta・Criteo・Taboolaへ実際に接続しています（本文は読み取りません）。',
+      note:'実際にリクエストを投げた結果で、設定値の読み取りではありません。「到達しなかった」は遮断・通信エラー・DNS失敗などを区別できないため断定はしていません。このテストのため、Google・Meta・Criteo・Taboolaへ実際に接続します（本文は読み取りません）。',
       fix: allowed>0 ? 'iOSなら、コンテンツブロッカー対応のアプリを入れて 設定 → App → Safari → 拡張機能 で有効化します。より広く止めたい場合はDNSフィルタ（暗号化DNSプロファイル）の導入も選択肢です。' : null,
     });
   }
@@ -940,8 +850,7 @@ class Component extends DCLogic {
         {label:'指紋対策の兆候', value: (rfp && rfp.length) ? rfp.join('・') : '検出されず'},
       ],
       why,
-      note:'重要なのは「取得できるか」ではなく「他人と違う値か」です。標準化（全員に同じ値を返す）やランダム化（毎回違う値を返す）が働いていれば、値が取れても識別には使えません。この判定は取得できた信号の種類と標準化の兆候から推定したもので、実際の追跡可能性を測ったものではありません——母集団の統計を持たないため「何人に1人」といった数値は出しません。上のハッシュは端末内で計算しただけで、どこにも送信していません。'
-        + '　タイムゾーンとDo Not Track / GPC もここに含めています。いずれも独立した設定項目というより指紋の材料だからです。DNTとGPCは拒否の意思をHTTPヘッダーで伝えるだけの仕組みで、サイト側に遵守義務はありません。DNTは事実上ほぼ全てのサイトに無視されており、むしろ「DNTを送っている少数派」として識別されやすくなるという指摘があります。GPCは米カリフォルニア州など一部の法域でのみ法的効力を持ちます。',
+      note:'判定基準は「取得できるか」ではなく「他人と違う値か」です。標準化やランダム化が働いていれば、値が取れても識別には使えません。母集団の統計は持たないため「何人に1人」は出しません。ハッシュは端末内で計算するだけで送信しません。タイムゾーン・DNT・GPCも独立設定ではなく指紋の材料としてここに含めています（DNTは事実上無視され、GPCは一部法域のみ有効）。',
       fix: level==='check' ? 'Safariなら 設定 → Safari → 詳細 →「高度なトラッキングとフィンガープリントからの保護」を有効にします。より徹底するならMullvad BrowserやTor Browserのように、全利用者の値を揃える設計のブラウザを使う方法があります。' : null,
     });
   }
@@ -983,7 +892,7 @@ class Component extends DCLogic {
         {label:'基準（配信データ）', value: 'iOS '+min.ios+' / Safari '+min.safari},
       ],
       why: stale ? '読み取ったバージョンが基準値を下回っています。' : (iosVer ? '読み取ったバージョンが基準値を満たしています。' : 'User-Agentからバージョンを読み取れませんでした。'),
-      note:'User-Agentは書き換えられるため、この判定は「推測」です。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準値は配信データの minVersions で管理しており、新しいOSが出れば更新だけで全端末の判定が変わります。',
+      note:'User-Agentは書き換えられるため、この判定は「推測」です。基準値は配信データの minVersions で管理しており、新しいOSが出れば更新だけで全端末の判定が変わります。',
       fix: stale ? '設定 → 一般 → ソフトウェアアップデート から更新します。' : null,
     });
   }
@@ -1082,7 +991,7 @@ class Component extends DCLogic {
     }
     this._emit('ipv6', {
       level, confidence:'est', severity:sev, text: ip, rows, why,
-      note:'IPv6が割り当てられていること自体は正常で、問題ではありません。問題になるのは、IPv4はVPNを通っているのにIPv6だけ別経路になっている場合です。上のIPv4診断と登録組織が一致していれば、両方とも同じ経路です。',
+      note:'IPv6が割り当てられていること自体は正常です。問題になるのは、IPv4はVPN経由なのにIPv6だけ別経路になっている場合——上のIPv4診断と登録組織が一致していれば同じ経路です。',
       fix: level==='check' ? 'VPNアプリの設定でIPv6を有効にするか、IPv6を遮断する設定（IPv6リーク防止）を入れます。' : null,
     });
   }
@@ -1131,7 +1040,7 @@ class Component extends DCLogic {
           {label:'出口との関係', value: relation},
         ],
         why,
-        note:'検出できるのは実際に問い合わせを行った1台のみです。設定されている全リゾルバを列挙するには権威DNSサーバー側でクエリ元を記録する必要があり、静的ページからは実施できません。またVPN事業者が複数のASを使うことがあるため、組織名の不一致だけでは流出と断定できません。網羅的に確認する場合は dnsleaktest.com を直接開いてください。',
+        note:'検出できるのは実際に問い合わせを行った1台のみです。VPN事業者は複数のASを使うことがあるため、組織名の不一致だけでは流出と断定できません。網羅的に確認するには dnsleaktest.com を直接開いてください。',
         fix,
       });
       return {resolverIp: dns.ip, geo, sameNet};
@@ -1186,7 +1095,7 @@ class Component extends DCLogic {
         level, confidence:'high', severity:sev,
         text: list.length ? list.join(' / ') : '候補IPは検出されませんでした',
         why,
-        note:'WebRTCはブラウザ内蔵のP2P通信機構で、接続相手に自分のIPアドレス候補を直接伝えます。この列挙はVPNクライアントを経由しないことがあり、VPN使用中でも実IPが渡る既知の抜け穴です。ここは実際に列挙させて確認しているため、判定の確信度は高い項目です。候補が出ないブラウザでは、そもそもこの抜け穴自体が存在しません。',
+        note:'WebRTCは接続相手に自分のIPアドレス候補を直接伝える、ブラウザ内蔵のP2P機構です。VPNを経由せず実IPが渡る既知の抜け穴で、実際に列挙させて確認しているため確信度は高い項目です。',
         fix,
       });
     }catch(e){
@@ -1212,7 +1121,7 @@ class Component extends DCLogic {
     this._emit('ipv4', {
       level:'info', confidence:'high', severity:'none', text: ipInfo.ip, rows,
       why:'外部から見えているアドレスの実測値です。良し悪しの判定は行いません（VPNを使う意図があるかどうかは利用者にしか分からないうえ、ブラウザからVPN接続の有無を確定判定する手段もないため）。',
-      note:'VPN接続中なら、ここに出るのは自宅回線ではなく接続先サーバーのISPと所在地です。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。エッジ拠点は通信が到達しているCDNの拠点で、地理的位置が「国」とかけ離れていなければ経路として妥当です。',
+      note:'VPN接続中なら、ここには自宅回線ではなく接続先サーバーのISPと所在地が出ます。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。',
     });
   }
 
@@ -1255,7 +1164,7 @@ class Component extends DCLogic {
         {label:'Storage Access API', value: hasSAA ? '実装あり（ITP系の特徴）' : '実装なし'},
       ],
       why,
-      note:'これは実際にサードパーティCookieを書き込んで確認した実測ではなく、ブラウザの種類とAPI対応状況からの推定です。真の読み書きテストには別ドメインを用いたiframeが必要で、それには新たな外部サービスへの依存が伴うため、この診断では実施していません。手動で確認したい場合は、ブラウザの設定画面でサードパーティCookieの扱いを直接確認してください。',
+      note:'実際に書き込んで確認した実測ではなく、ブラウザの種類とAPI対応状況からの推定です。真の読み書きテストには別ドメインが必要で、新たな外部依存が伴うため実施していません。',
     });
   }
 
@@ -1335,15 +1244,15 @@ class Component extends DCLogic {
       }));
 
       const netDefs = [
-        {id:'summary', title:'総合評価', desc:'各項目の判定を集計し、優先して直すべきものから順に並べます。「異常」は実際に測って確認できたもの、「要確認」は間接的な材料からの推定で、断定はしていません。まずここを見て、対応が必要な項目があるかだけ把握してください。個別の根拠は下の各項目に「この判定になった理由」として書いてあります。', dep:[]},
-        {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'インターネット側から見えているグローバルIPアドレスと、そのアドレスに登録されているISP・組織名・おおよその所在地、到達したCDNのエッジ拠点です。良し悪しの判定は行いません——VPNを使う意図があるかどうかは利用者にしか分からないうえ、ブラウザからVPN接続の有無を確定判定する手段もないため、Web版では「VPN接続状態」の推定自体を行わないことにしました。', dep:['api.ipify.org','ipwho.is','www.cloudflare.com']},
-        {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6アドレスが割り当てられている場合の詳細です。割り当て自体は正常な状態で、問題ではありません。ただしVPNがIPv6に対応していない構成だと、IPv4はVPNを通っているのにIPv6だけ素通しになり、こちらから実IPが露出します。上のIPv4診断と組織名・国が一致しているかで判別できます。', dep:['api6.ipify.org','ipwho.is']},
-        {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'ドメイン名をIPアドレスに変換した実際のDNSリゾルバを特定します。通信本体がVPNを通っていても、名前解決だけがISPのリゾルバに流れていれば、閲覧したドメインの一覧はISPに渡ります。ただしVPN事業者が複数のASにリゾルバを置くことがあるため、組織名の不一致だけでは流出と断定しません。', dep:['edns.ip-api.com']},
-        {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCはブラウザ内蔵のP2P通信機構です。相手と直接接続するために、ブラウザがOSのネットワークスタックへ問い合わせて自身のIPアドレス候補（ICE candidate）を列挙します。この列挙はVPNクライアントを経由しないことがあり、VPN使用中でも実IPが相手に渡る既知の抜け穴です。実際に列挙させて確認するため、この診断で唯一「異常」を断定できる項目です。', dep:['stun.l.google.com']},
-                {id:'blocker', title:'トラッカー遮断の実測', desc:'既知のトラッキング用スクリプト（Google Analytics、Meta Pixel、Criteo等）へ実際にリクエストを投げ、遮断されるかを測ります。「コンテンツブロッカーを入れたつもり」ではなく、いま本当に効いているかが分かります。設定画面の読み取りではなく通信結果なので、拡張機能の失効やドメイン単位の除外設定も含めて実態が出ます。', dep:['www.google-analytics.com','doubleclick.net','facebook.net','criteo.net','taboola.com']},
-        {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報・タイムゾーン・Do Not Trackなどから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。重要なのは値が取得できるかではなく、標準化やランダム化によって他人と同じ値になっているかどうかです。', dep:[]},
-        {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準はメジャーバージョンのみで比較します（マイナー更新のたびに配信データを追随させないため）。', dep:[]},
-        {id:'thirdparty', title:'サードパーティCookieの遮断', desc:'サードパーティCookie（他サイトを横断した追跡に使われる）が既定でブロックされる構成かどうかを、ブラウザの種類とAPI対応状況から推定します。実際に書き込み・読み出しを試す実測ではありません——別ドメインを使う必要があり、新たな外部依存を増やすことになるため見送りました。', dep:[]},
+        {id:'summary', title:'総合評価', desc:'各項目の判定を集計し、優先度順に並べます。「異常」は実測で確認できたもの、「要確認」は推定で断定はしていません。個別の根拠は各項目の「この判定になった理由」に書いてあります。', dep:[]},
+        {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'外部から見えているグローバルIPアドレスと、登録ISP・所在地・到達エッジ拠点です。良し悪しの判定は行いません——ブラウザからVPN接続の有無を確定判定する手段がないためです。', dep:['api.ipify.org','ipwho.is','www.cloudflare.com']},
+        {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6アドレスが割り当てられている場合の詳細です。割り当て自体は問題ではありません。IPv4はVPN経由なのにIPv6だけ素通しになっていないか、上のIPv4診断と組織名・国が一致するかで確認します。', dep:['api6.ipify.org','ipwho.is']},
+        {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'実際に使われているDNSリゾルバを特定します。名前解決だけがISPのリゾルバに流れていれば、閲覧したドメインの一覧はISPに渡ります。VPN事業者は複数拠点にリゾルバを置くため、組織名の不一致だけでは流出と断定しません。', dep:['edns.ip-api.com']},
+        {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCはブラウザ内蔵のP2P通信機構で、接続相手に自身のIPアドレス候補を伝えます。VPNクライアントを経由せず実IPが渡る既知の抜け穴で、実際に列挙させて確認するため、この診断で唯一「異常」を断定できる項目です。', dep:['stun.l.google.com']},
+        {id:'blocker', title:'トラッカー遮断の実測', desc:'既知のトラッキング用スクリプト（Google Analytics、Meta Pixel、Criteo等）へ実際にリクエストを投げ、遮断されるかを測ります。設定画面の読み取りではなく通信結果なので、拡張機能の失効なども含めて実態が出ます。', dep:['www.google-analytics.com','doubleclick.net','facebook.net','criteo.net','taboola.com']},
+        {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報・タイムゾーンなどから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。重要なのは値が取得できるかではなく、他人と違う値かどうかです。', dep:[]},
+        {id:'platform', title:'OS・ブラウザの更新状況', desc:'User-Agentから判定したOS・ブラウザのバージョンを、配信データの基準値と比較します。OSが古いままでは公開済みの脆弱性が残り最弱点になります。基準はメジャーバージョンのみで比較します。', dep:[]},
+        {id:'thirdparty', title:'サードパーティCookieの遮断', desc:'サードパーティCookie（他サイトを横断した追跡に使われる）が既定でブロックされる構成かを、ブラウザの種類とAPI対応状況から推定します。実際に書き込み・読み出しを試す実測ではありません。', dep:[]},
       ];
       // 指摘1：各カードに「外部照会」か「端末内で完結」かのバッジを付ける。
       // 診断ツール自身が何を外部に渡しているかを、利用者から見えない状態に
@@ -1369,26 +1278,6 @@ class Component extends DCLogic {
       summaryCardOut = toCard(netDefs.find(d=>d.id==='summary'));
       netChecksOut = netDefs.filter(d=>d.id!=='summary').map(toCard);
     }
-
-    const widgetCount = nHigh + nMed + nLow;
-    const notifyProps = {
-      notifyNewOn: s.notifyNew,
-      notifyNewCheckColor: s.notifyNew ? 'oklch(0.5 0.1 150)' : 'transparent',
-      notifyNewCheckBorder: s.notifyNew ? 'oklch(0.5 0.1 150)' : 'oklch(0.4 0.01 40)',
-      toggleNotifyNew: ()=>this.toggleNotifyNew(),
-      notifyRemindOn: s.notifyRemind,
-      notifyRemindCheckColor: s.notifyRemind ? 'oklch(0.5 0.1 150)' : 'transparent',
-      notifyRemindCheckBorder: s.notifyRemind ? 'oklch(0.5 0.1 150)' : 'oklch(0.4 0.01 40)',
-      toggleNotifyRemind: ()=>this.toggleNotifyRemind(),
-      remindDaysOptions: [7,14,30].map(n=>({
-        n, label:n+'日ごと', selected: s.remindDays===n,
-        borderColor: s.remindDays===n ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
-        bg: s.remindDays===n ? 'oklch(0.95 0.05 25)' : 'oklch(0.99 0.005 85)',
-        click: ()=>this.setRemindDays(n),
-      })),
-      testNotify: ()=>this.testNotify(),
-      widgetCount,
-    };
 
     const navTabs = [
       {key:'check', label:'設定状況確認'},
@@ -1456,7 +1345,7 @@ class Component extends DCLogic {
         bg: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'none',
         color: s.tempLevel===lv.id ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
       })),
-      tempLevelDesc: (LEVELS.find(lv=>lv.id===s.tempLevel) || LEVELS[1]).desc,
+      levelInfo: LEVELS.map(lv=>({label: lv.label.split(' — ')[0], desc: lv.desc})),
       isCheckView: showMain && s.view==='check',
       isAccountsView: showMain && s.view==='accounts',
       isNetworkView: showMain && s.view==='network',
@@ -1476,7 +1365,6 @@ class Component extends DCLogic {
       netChecks: netChecksOut,
       summaryCard: summaryCardOut,
       runDiagnostics: ()=>this.runDiagnostics(),
-      ...notifyProps,
     };
   }
 }
