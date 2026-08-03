@@ -397,9 +397,9 @@ const APP_DATA = {"version":"2026-07-30b","minVersions":{"ios":"26.0","safari":"
 const METHODS = ['Google','Apple','GitHub','LINE','Yahoo! JAPAN','メールアドレス','その他'];
 const SEV_LABEL = {high:'要対応',medium:'推奨',low:'任意'};
 const LEVELS = [
-  {id:'basic', label:'基本 — 要対応のみ', desc:'最低限、見過ごせない項目だけ'},
-  {id:'standard', label:'標準 — 要対応+推奨', desc:'一般的に見直すべき項目まで'},
-  {id:'thorough', label:'徹底 — すべて確認', desc:'任意の項目も含めて棚卸し'},
+  {id:'basic', label:'基本', desc:'「要対応」事項のみ'},
+  {id:'standard', label:'標準', desc:'「要対応」と「推奨」'},
+  {id:'thorough', label:'徹底', desc:'「要対応」「推奨」「任意」すべて'},
 ];
 const SEV_ALLOW = {basic:['high'], standard:['high','medium'], thorough:['high','medium','low']};
 // 初回選択画面の並び。data側に category が無い古いデータは 'app' として扱う。
@@ -1340,12 +1340,12 @@ class Component extends DCLogic {
       navTabs,
       viewTitle: s.view==='check' ? '設定状況確認' : s.view==='accounts' ? '連携アカウント台帳' : 'ネットワーク診断',
       levelOptions: LEVELS.map(lv=>({
-        label: lv.label.split(' — ')[0], click: ()=>this.setTempLevel(lv.id),
+        label: lv.label, click: ()=>this.setTempLevel(lv.id),
         borderColor: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'oklch(0.78 0.01 60)',
         bg: s.tempLevel===lv.id ? 'oklch(0.22 0.01 40)' : 'none',
         color: s.tempLevel===lv.id ? 'oklch(0.97 0.008 85)' : 'oklch(0.45 0.01 40)',
       })),
-      levelInfo: LEVELS.map(lv=>({label: lv.label.split(' — ')[0], desc: lv.desc})),
+      levelInfo: LEVELS.map(lv=>({label: lv.label, desc: lv.desc})),
       isCheckView: showMain && s.view==='check',
       isAccountsView: showMain && s.view==='accounts',
       isNetworkView: showMain && s.view==='network',
