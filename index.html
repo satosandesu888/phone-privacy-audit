@@ -251,8 +251,15 @@ input,select,textarea{font-family:inherit}
             <span style="display:inline-block;width:10px;height:10px;border:1.5px solid oklch(0.5 0.18 25);border-right-color:transparent;border-radius:50%;animation:pa-spin .6s linear infinite"></span>集計中...
           </div>
         </sc-if>
-        <sc-if value="{{ summaryCard.hasResultText }}">
-          <div style="display:inline-block;font:700 13.5px 'IBM Plex Mono',monospace;color:{{ summaryCard.resultColor }};border:2px solid {{ summaryCard.resultColor }};border-radius:3px;padding:5px 10px;margin-bottom:4px">{{ summaryCard.resultText }}</div>
+        <sc-if value="{{ summaryCard.hasChips }}">
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px">
+            <sc-for list="{{ summaryCard.chips }}" as="ch" hint-placeholder-count="3">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <div style="font:700 13.5px 'IBM Plex Mono',monospace;color:{{ ch.color }};min-width:52px">{{ ch.label }}</div>
+                <div style="font:700 15px 'IBM Plex Mono',monospace;color:{{ ch.color }}">{{ ch.count }}</div>
+              </div>
+            </sc-for>
+          </div>
         </sc-if>
         <sc-if value="{{ summaryCard.hasRows }}">
           <div style="margin-top:10px;border-top:1px solid oklch(0.7 0.01 60);padding-top:9px">
@@ -469,26 +476,6 @@ const CATEGORIES = [
 const isPrivateIp = ip => /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^127\.|^169\.254\./.test(ip);
 // 出口IPの登録組織名（ipwho.is の connection.isp / org）から事業者を推定する対照表。
 // 組織名が事業者名を含む場合はここまで特定できる。
-const VPN_ORG_PATTERNS = [
-  [/mullvad/i, 'Mullvad VPN'],
-  [/protonvpn|proton ag|proton technologies/i, 'Proton VPN'],
-  [/nordvpn|nord vpn|tefincom/i, 'NordVPN'],
-  [/expressvpn|express vpn/i, 'ExpressVPN'],
-  [/surfshark/i, 'Surfshark'],
-  [/private internet access|london trust media|kape/i, 'Private Internet Access'],
-  [/cyberghost/i, 'CyberGhost'],
-  [/windscribe/i, 'Windscribe'],
-  [/\bivpn\b/i, 'IVPN'],
-  [/azirevpn|azire/i, 'AzireVPN'],
-  [/ovpn integritet|ovpn\.com/i, 'OVPN'],
-  [/perfect privacy/i, 'Perfect Privacy'],
-  [/tunnelbear/i, 'TunnelBear'],
-  [/torguard/i, 'TorGuard'],
-  [/vyprvpn|golden frog/i, 'VyprVPN'],
-  [/purevpn|gz systems/i, 'PureVPN'],
-  [/hide\.?me|eventure/i, 'hide.me'],
-  [/mozilla/i, 'Mozilla VPN'],
-];
 // VPN事業者が出口に使いがちなホスティング事業者。事業者名までは絞れないが、
 // 一般家庭回線ではないことは分かる。
 const DATACENTER_ORG_RE = /m247|datapacket|xtom|31173|tzulo|blix|leaseweb|\bovh\b|hetzner|choopa|vultr|digitalocean|linode|amazon|google cloud|microsoft|oracle|cogent|psychz|quickpacket|zenlayer|servers\.com|packethub|globalconnect|clouvider|pathnet|owl limited|estnoc|iregister|netnod|qnax|rockenstein|tsunet|wildcard|creanova|ergonet|fiberby|glesys|hostroyale|iventure|layer7|melbicom|mainserver|comnet|dedicated\.com|hostuniversal|servinga|serverius|vpsville|xenyth|zappiehost|misaka|hivelocity|performive|velia|combahton|greenhost|init7|obenetwork|portlane|privex|salyut|solarcom|stackpath|tilaa|worldstream/i;
@@ -721,6 +708,7 @@ class Component extends DCLogic {
       note: (o.note||'') + (o.fix ? '　【改善するには】' + o.fix : ''),
       noteColor: v.color,
       _level: o.level, _severity: o.severity || 'none',
+      _chips: o.chips || null,
     }}}));
   }
 
@@ -755,7 +743,7 @@ class Component extends DCLogic {
   }
 
   async runDiagnostics(){
-    const ids = ['summary','ipv6','dns','webrtc','vpnstatus','blocker','fingerprint','platform','thirdparty','storage','scope'];
+    const ids = ['summary','ipv4','ipv6','dns','webrtc','blocker','fingerprint','platform','thirdparty','storage','scope'];
     const loading = {};
     ids.forEach(k=>loading[k]={loading:true});
     this.setState({net:loading});
@@ -769,9 +757,9 @@ class Component extends DCLogic {
     const dnsInfo = this._safe('dns', ()=>this._checkDNS(ipInfo));
     const jobs = [
       ipInfo, dnsInfo,
+      this._safe('ipv4', ()=>this._checkIPv4Info(ipInfo, trace)),
       this._safe('ipv6', ()=>this._checkIPv6(ipInfo)),
       this._safe('webrtc', ()=>this._checkWebRTC(ipInfo, rfp)),
-      this._safe('vpnstatus', ()=>this._checkVpnStatus(ipInfo, dnsInfo, trace)),
       this._safe('blocker', ()=>this._checkBlocker()),
       this._safe('storage', ()=>this._checkStorage()),
       this._safe('thirdparty', ()=>this._checkThirdPartyCookies()),
@@ -788,7 +776,7 @@ class Component extends DCLogic {
     const n = this.state.net || {};
     // 自己開示（storage）と診断範囲（scope）は利用者についての所見ではないので集計しない。
     const TITLES = {ipv6:'IPv6の露出', dns:'DNSリーク',
-      webrtc:'WebRTCリーク', vpnstatus:'IPv4アドレス／VPN接続状態',
+      webrtc:'WebRTCリーク',
       blocker:'トラッカー遮断', fingerprint:'ブラウザ指紋', platform:'OS・ブラウザの更新', thirdparty:'サードパーティCookie'};
     const SEV_ORDER = {high:0, medium:1, low:2, none:3};
     const entries = Object.keys(TITLES).filter(k=>n[k] && !n[k].loading).map(k=>({
@@ -806,7 +794,14 @@ class Component extends DCLogic {
     if(unknowns.length) rows.push({label:'判定できなかった項目', value: unknowns.map(e=>e.title).join('、')});
     this._emit('summary', {
       level, confidence: risks.length ? 'high' : 'est', severity: risks.length ? 'high' : (checks.length ? 'medium' : 'none'),
-      text: '異常 '+risks.length+' 件／要確認 '+checks.length+' 件／正常 '+oks.length+' 件',
+      // 単一行の badge だと「要確認：異常 0 件／要確認 2 件／正常 3 件」のように
+      // 「要確認」が2回出て読みにくいため、text は出さず色分けした3行の
+      // 内訳（chips）を専用ブロックとして表示する。
+      text: '', chips: [
+        {label:'異常', count: risks.length, color: VERDICT.risk.color},
+        {label:'要確認', count: checks.length, color: VERDICT.check.color},
+        {label:'正常', count: oks.length, color: VERDICT.ok.color},
+      ],
       rows,
       note:'このツールは「断定は実測でしか行わない」方針です。直接測れたものだけを異常とし、間接的な材料からの推定は要確認で止めます。プライバシー診断では、漏れていないのに漏れて見える誤検知のほうが判断を歪める害が大きいためです。その代わり要確認を握りつぶさず必ず表示し、各項目に確信度を併記しています。'
         + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、気になる項目は「再診断」で数回確かめてください。診断結果はこのページを離れると保存されません。',
@@ -829,7 +824,6 @@ class Component extends DCLogic {
         {label:'診断のため外部に渡るもの③', value:'IPアドレス → www.cloudflare.com（エッジ拠点・TLS・WARP状態）、stun.l.google.com（WebRTC検査用STUNサーバー）'},
         {label:'診断のため外部に渡るもの④', value:'IPアドレス → edns.ip-api.com（使用中DNSリゾルバの特定）'},
         {label:'診断のため外部に渡るもの⑤', value:'IPアドレス → Google・Meta・Criteo・Taboola（トラッカー遮断テストの接続先。本文は読み取りません）'},
-        {label:'保存について', value:'診断結果・チェックリストの進捗・連携アカウント台帳を一切保存しません。ページを閉じる、またはリロードすると、すべての状態が消えます。エクスポート機能はありません'},
       ],
       note:'ここが全部「正常」でも、それはブラウザから観測できる範囲が正常というだけです。プライバシー全体の保証ではありません。特にVPN事業者への信頼は、この診断ではなく事業者の監査報告や司法管轄で判断する領域です。'
         + '　このツールは「あなたが何を漏らしているか」を見せる以上、自分自身が何を外部に渡しているかも隠しません。診断結果・チェック状況・台帳の内容は一切送信しませんが、診断のためにIPアドレスが上記の外部サービスへ渡ります。各項目のカードにも、外部照会か端末内完結かのバッジを付けています。'
@@ -1270,70 +1264,27 @@ class Component extends DCLogic {
     }
   }
 
-  async _checkVpnStatus(ipInfoPromise, dnsInfoPromise){
-    try{
-      let warp = false;
-      try{
-        const r = await fetch(bust('https://www.cloudflare.com/cdn-cgi/trace'),{cache:'no-store'});
-        const text = await r.text();
-        const obj = {};
-        text.trim().split('\n').forEach(line=>{ const i=line.indexOf('='); if(i>0) obj[line.slice(0,i)]=line.slice(i+1); });
-        warp = obj.warp==='on' || obj.warp==='plus';
-      }catch(e){}
-      const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
-      const dnsInfo = await Promise.resolve(dnsInfoPromise).catch(()=>null);
-      const org = (ipInfo && ipInfo.org) || '';
-      const geoOrg = (dnsInfo && dnsInfo.sameNet && dnsInfo.geo) ? dnsInfo.geo : '';
-      const orgForMatch = org || geoOrg;
-      const sameNetDns = !!(dnsInfo && dnsInfo.sameNet);
-      let provider = null;
-      for(const [re,name] of VPN_ORG_PATTERNS){ if(re.test(orgForMatch)){ provider = name; break; } }
-      const isDc = !!(orgForMatch && DATACENTER_ORG_RE.test(orgForMatch));
-      let level, sev, text, why;
-      if(provider){
-        level='ok'; sev='none'; text=provider+' 経由と推定';
-        why='出口IPの登録組織名に事業者名が含まれています（'+orgForMatch+'）。';
-      } else if(warp){
-        level='ok'; sev='none'; text='Cloudflare WARP 経由と推定';
-        why='Cloudflare の trace が WARP 有効を返しました。';
-      } else if(isDc){
-        level='ok'; sev='none'; text='データセンター経由（事業者は特定できず）';
-        why='出口IPの登録組織（'+orgForMatch+'）はホスティング事業者です。一般家庭回線ではないため、VPNまたは類似の経路を通っていると考えられます。多くのVPN事業者はサーバーを借りて運用しているため、事業者名までは分かりません。';
-      } else if(sameNetDns){
-        level='ok'; sev='none'; text='VPN経由の可能性が高い';
-        why='DNSリゾルバが出口IPと同一ネットワーク上にあります。一般ISPではまず起きない構成です。';
-      } else if(org){
-        level='check'; sev='medium'; text='一般ISP回線に見えます';
-        why='出口IPの登録組織（'+org+'）がVPN事業者にもホスティング事業者にも該当しません。VPNを使っている想定であれば、接続が切れている可能性があります。';
-      } else {
-        level='unknown'; sev='none'; text='判定材料が得られませんでした';
-        why='出口IPの登録組織を取得できませんでした。';
-      }
-      // 旧「IPv4 アドレス／接続情報」カードのデータをここに統合する（指摘9）。
-      // 出口IPそのものは判定を持たない文脈情報として先頭に並べ、そのうえで
-      // VPN経由かどうかの判定を続ける。
-      const ip4rows = (ipInfo && ipInfo.rows) || [];
-      const ipRow = (ipInfo && ipInfo.ip) ? [{label:'IPv4アドレス', value: ipInfo.ip}] : [];
-      this._emit('vpnstatus', {
-        level, confidence:'est', severity:sev, text,
-        rows:[
-          ...ipRow,
-          ...ip4rows,
-          {label:'DNSリゾルバとの関係', value: sameNetDns ? '出口と同一ネットワーク' : '—'},
-          {label:'Cloudflare WARP', value: warp ? '有効' : '無効'},
-        ],
-        why,
-        note:'ブラウザからVPN接続の有無を確定判定する手段はないため、この項目は必ず推定です。VPNを使う意図がない場合、「一般ISP回線」は正常な状態です。ネイティブアプリなら NWPathMonitor でトンネルの有無自体を確実に判定できますが、どの事業者かはやはり分かりません。'
-          + '　IPv4アドレス自体の良し悪しは判定していません（VPNを使う意図があるかどうかは利用者にしか分からないため）。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。エッジ拠点は通信が到達しているCDNの拠点で、地理的位置が「国」とかけ離れていなければ経路として妥当です。',
-        fix: level==='check' ? 'VPNを使う想定であれば、VPNアプリの接続状態とキルスイッチの設定を確認してください。' : null,
-      });
-    }catch(e){
-      this._emit('vpnstatus', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
-        why:'判定に必要な情報を取得できませんでした。', note:'異常を検出したという意味ではありません。'});
+  // ブラウザからVPN接続の有無を確定判定する手段はなく、組織名照合による
+  // 推定は「推定でしかない」という理由で不採用にした（Webアプリの限界と
+  // して判断が難しく、誤検知の余地が残る）。判定は行わず、実測できる
+  // IPv4アドレス・登録組織名・所在地・到達エッジ拠点だけを事実として出す。
+  async _checkIPv4Info(ipInfoPromise, tracePromise){
+    const ipInfo = await Promise.resolve(ipInfoPromise).catch(()=>null);
+    if(!ipInfo || !ipInfo.ip){
+      this._emit('ipv4', {level:'unknown', confidence:'more', severity:'none', text:'取得できませんでした',
+        why:'IPv4アドレスを取得できませんでした。', note:'異常を検出したという意味ではありません。'});
+      return;
     }
+    const tr = await Promise.resolve(tracePromise).catch(()=>null);
+    const rows = [{label:'IPv4アドレス', value: ipInfo.ip}, ...(ipInfo.rows||[])];
+    this._emit('ipv4', {
+      level:'info', confidence:'high', severity:'none', text: ipInfo.ip, rows,
+      why:'外部から見えているアドレスの実測値です。良し悪しの判定は行いません（VPNを使う意図があるかどうかは利用者にしか分からないうえ、ブラウザからVPN接続の有無を確定判定する手段もないため）。',
+      note:'VPN接続中なら、ここに出るのは自宅回線ではなく接続先サーバーのISPと所在地です。自宅の地域や契約ISPの名前が出ている場合、この通信はVPNを通っていません。エッジ拠点は通信が到達しているCDNの拠点で、地理的位置が「国」とかけ離れていなければ経路として妥当です。',
+    });
   }
 
-  // ---- サードパーティCookieの推定 ----
+  // ---- サードパーティCookieの推定 ----  // ---- サードパーティCookieの推定 ----
   // 本来は別ドメインへのiframeで実際に書き込み・読み出しを試す「実測」が
   // 望ましいが、この単一ページアプリは第二のドメインを持たない。新たに
   // 外部サービスへ依存させてまで実装すると、指摘1・2で確立した「外部依存を
@@ -1453,11 +1404,11 @@ class Component extends DCLogic {
 
       const netDefs = [
         {id:'summary', title:'総合評価', desc:'各項目の判定を集計し、優先して直すべきものから順に並べます。「異常」は実際に測って確認できたもの、「要確認」は間接的な材料からの推定で、断定はしていません。まずここを見て、対応が必要な項目があるかだけ把握してください。個別の根拠は下の各項目に「この判定になった理由」として書いてあります。', dep:[]},
+        {id:'ipv4', title:'IPv4 アドレス／接続情報', desc:'インターネット側から見えているグローバルIPアドレスと、そのアドレスに登録されているISP・組織名・おおよその所在地、到達したCDNのエッジ拠点です。良し悪しの判定は行いません——VPNを使う意図があるかどうかは利用者にしか分からないうえ、ブラウザからVPN接続の有無を確定判定する手段もないため、Web版では「VPN接続状態」の推定自体を行わないことにしました。', dep:['api.ipify.org','ipwho.is','www.cloudflare.com']},
         {id:'ipv6', title:'IPv6 アドレス／接続情報', desc:'IPv6アドレスが割り当てられている場合の詳細です。割り当て自体は正常な状態で、問題ではありません。ただしVPNがIPv6に対応していない構成だと、IPv4はVPNを通っているのにIPv6だけ素通しになり、こちらから実IPが露出します。上のIPv4診断と組織名・国が一致しているかで判別できます。', dep:['api6.ipify.org','ipwho.is']},
         {id:'dns', title:'DNSリーク検査（リゾルバ確認）', desc:'ドメイン名をIPアドレスに変換した実際のDNSリゾルバを特定します。通信本体がVPNを通っていても、名前解決だけがISPのリゾルバに流れていれば、閲覧したドメインの一覧はISPに渡ります。ただしVPN事業者が複数のASにリゾルバを置くことがあるため、組織名の不一致だけでは流出と断定しません。', dep:['edns.ip-api.com']},
         {id:'webrtc', title:'WebRTC IPリーク検査', desc:'WebRTCはブラウザ内蔵のP2P通信機構です。相手と直接接続するために、ブラウザがOSのネットワークスタックへ問い合わせて自身のIPアドレス候補（ICE candidate）を列挙します。この列挙はVPNクライアントを経由しないことがあり、VPN使用中でも実IPが相手に渡る既知の抜け穴です。実際に列挙させて確認するため、この診断で唯一「異常」を断定できる項目です。', dep:['stun.l.google.com']},
-        {id:'vpnstatus', title:'IPv4アドレス／VPN接続状態', desc:'インターネット側から見えているグローバルIPアドレスと、そのアドレスに登録されているISP・組織名・おおよその所在地、到達したCDNのエッジ拠点を表示したうえで、VPNを経由しているかを推定します。組織名にVPN事業者名が入っていれば事業者まで特定できますが、多くの事業者はサーバーを借りて運用しているため、実際には貸主であるホスティング事業者名しか現れません。ブラウザから接続の有無を確定判定する手段はありません。', dep:['api.ipify.org','ipwho.is','www.cloudflare.com']},
-        {id:'blocker', title:'トラッカー遮断の実測', desc:'既知のトラッキング用スクリプト（Google Analytics、Meta Pixel、Criteo等）へ実際にリクエストを投げ、遮断されるかを測ります。「コンテンツブロッカーを入れたつもり」ではなく、いま本当に効いているかが分かります。設定画面の読み取りではなく通信結果なので、拡張機能の失効やドメイン単位の除外設定も含めて実態が出ます。', dep:['www.google-analytics.com','doubleclick.net','facebook.net','criteo.net','taboola.com']},
+                {id:'blocker', title:'トラッカー遮断の実測', desc:'既知のトラッキング用スクリプト（Google Analytics、Meta Pixel、Criteo等）へ実際にリクエストを投げ、遮断されるかを測ります。「コンテンツブロッカーを入れたつもり」ではなく、いま本当に効いているかが分かります。設定画面の読み取りではなく通信結果なので、拡張機能の失効やドメイン単位の除外設定も含めて実態が出ます。', dep:['www.google-analytics.com','doubleclick.net','facebook.net','criteo.net','taboola.com']},
         {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報・タイムゾーン・Do Not Trackなどから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。重要なのは値が取得できるかではなく、標準化やランダム化によって他人と同じ値になっているかどうかです。', dep:[]},
         {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準はメジャーバージョンのみで比較します（マイナー更新のたびに配信データを追随させないため）。', dep:[]},
         {id:'thirdparty', title:'サードパーティCookieの遮断', desc:'サードパーティCookie（他サイトを横断した追跡に使われる）が既定でブロックされる構成かどうかを、ブラウザの種類とAPI対応状況から推定します。実際に書き込み・読み出しを試す実測ではありません——別ドメインを使う必要があり、新たな外部依存を増やすことになるため見送りました。', dep:[]},
@@ -1481,6 +1432,7 @@ class Component extends DCLogic {
           resultText: r.text||'', resultColor: r.color||'oklch(0.22 0.01 40)',
           hasNote: !!r.note, note:r.note||'', noteColor: r.noteColor||'oklch(0.5 0.01 40)',
           hasRows: !!(r.rows && r.rows.length), rows: r.rows||[],
+          hasChips: !!(r._chips && r._chips.length), chips: r._chips||[],
         };
       };
       // 総合評価は他の項目とは役割が違うので、専用ブロックとして別に描く。
