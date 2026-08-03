@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>iPhone個人情報保護監査アプリ</title>
-<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断・通知設定。データは端末内にのみ保存され、外部へ送信されません。">
+<meta name="description" content="端末とアカウント群のプライバシー設定を定期的に棚卸しするための、自己ホスト型の監査ツール。設定状況確認・連携アカウント台帳・ネットワーク診断・通知設定。データは一切保存せず、外部へも送信しません。">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -109,7 +109,7 @@ input,select,textarea{font-family:inherit}
   </div>
   <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:oklch(0.5 0.01 40);margin-bottom:22px">{{ tempLevelDesc }}</div>
   <button onClick="{{ startCheck }}" disabled="{{ onboardingDisabled }}" style="width:100%;padding:14px;border-radius:8px;border:1px solid oklch(0.22 0.01 40);background:{{ onboardingBtnBg }};color:{{ onboardingBtnColor }};font:700 14px 'IBM Plex Mono',monospace;letter-spacing:.03em;cursor:pointer">確認を開始</button>
-  <p style="text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:20px">データは端末内にのみ保存され、外部へ送信されません。</p>
+  <p style="text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:oklch(0.55 0.01 40);margin-top:20px">選択やチェック状況は保存されません。閉じる・リロードすると消えます。</p>
 </div>
 </sc-if>
 
@@ -200,7 +200,7 @@ input,select,textarea{font-family:inherit}
     </sc-if>
 
     <sc-if value="{{ isAccountsView }}">
-      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">どのサービスに、どのアカウントでログインしているかを記録する台帳です。パスワードは保存しません。「LINEとYahoo!の連携は解除したか」「GitHubアカウントでWordPressにログインしている」といった、SSOの結びつきを棚卸しするためのものです。</p>
+      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 16px">どのサービスに、どのアカウントでログインしているかを記録する<b>その場でのメモ</b>です。パスワードは扱いません。「LINEとYahoo!の連携は解除したか」「GitHubアカウントでWordPressにログインしている」といった、SSOの結びつきを棚卸しするためのものです。<b>アプリを閉じる、またはリロードすると消えます。</b>継続して使いたい場合は、確認のたびに手動で記録してください。</p>
       <button onClick="{{ openNewAccount }}" style="width:100%;padding:13px;border-radius:7px;border:1px dashed oklch(0.7 0.01 60);background:none;color:oklch(0.4 0.01 40);font:600 12.5px 'IBM Plex Mono',monospace;cursor:pointer;margin-bottom:16px">＋ 連携を記録する</button>
 
       <sc-for list="{{ accountCards }}" as="acc" hint-placeholder-count="2">
@@ -224,7 +224,7 @@ input,select,textarea{font-family:inherit}
           まだ何も記録されていません。
         </div>
       </sc-if>
-      <p style="font:400 10.5px/1.8 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 40);margin-top:18px;text-align:center">この台帳は常に端末内にのみ保存されます。</p>
+      <p style="font:400 10.5px/1.8 'IBM Plex Mono',monospace;color:oklch(0.6 0.01 40);margin-top:18px;text-align:center">このメモはどこにも保存されません。閉じる・リロードすると消えます。エクスポート機能はありません。</p>
     </sc-if>
 
     <sc-if value="{{ isNetworkView }}">
@@ -295,9 +295,6 @@ input,select,textarea{font-family:inherit}
             </div>
           </sc-if>
           <sc-if value="{{ c.hasNote }}"><div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:{{ c.noteColor }};margin-top:6px">{{ c.note }}</div></sc-if>
-          <sc-if value="{{ c.hasAction }}">
-            <button onClick="{{ c.action }}" style="width:100%;margin-top:10px;padding:9px;border-radius:6px;border:1px solid oklch(0.5 0.18 25);background:none;color:oklch(0.5 0.18 25);font:600 11.5px 'IBM Plex Mono',monospace;cursor:pointer">{{ c.actionLabel }}</button>
-          </sc-if>
         </div>
       </sc-for>
 
@@ -571,28 +568,28 @@ const REMOTE_URL = './settings-data.json';
 class Component extends DCLogic {
   constructor(props){
     super(props);
-    const ls = (k, fb) => { try{ const v = localStorage.getItem('pa_'+k); return v==null?fb:JSON.parse(v); }catch(e){ return fb; } };
+    // ノーログ方針：state はメモリ上（React state）のみに存在し、
+    // どこにも永続化しない。リロード・再起動で常にこのデフォルトに戻る。
     const allIds = APP_DATA.apps.flatMap(a=>a.items.map(i=>i.id));
-    let seen = ls('seen', null);
-    if(!seen){ seen = allIds; }
     this.state = {
-      picked: ls('picked', null),
+      picked: null,
       tempSel: {},
-      level: ls('level', 'standard'),
-      tempLevel: ls('level', 'standard'),
-      done: ls('done', []),
-      seen,
-      accounts: ls('accounts', []),
+      level: 'standard',
+      tempLevel: 'standard',
+      done: [],
+      seen: allIds,
+      accounts: [],
       view: 'check',
       tab: 'todo',
       activeSheet: null,
       editingAccountId: null,
       net: null,
-      data: ls('data', APP_DATA),
+      data: APP_DATA,
       netStarted: false,
-      notifyNew: ls('notifyNew', true),
-      notifyRemind: ls('notifyRemind', true),
-      remindDays: ls('remindDays', 30),
+      notifyNew: true,
+      notifyRemind: true,
+      remindDays: 30,
+      prevCanvas: null,
     };
     this.serviceRef = React.createRef();
     this.methodRef = React.createRef();
@@ -600,25 +597,9 @@ class Component extends DCLogic {
     this.memoRef = React.createRef();
   }
 
-  persist(){
-    const s = this.state;
-    try{
-      localStorage.setItem('pa_picked', JSON.stringify(s.picked));
-      localStorage.setItem('pa_done', JSON.stringify(s.done));
-      localStorage.setItem('pa_seen', JSON.stringify(s.seen));
-      localStorage.setItem('pa_accounts', JSON.stringify(s.accounts));
-      localStorage.setItem('pa_data', JSON.stringify(s.data));
-      localStorage.setItem('pa_level', JSON.stringify(s.level));
-      localStorage.setItem('pa_notifyNew', JSON.stringify(s.notifyNew));
-      localStorage.setItem('pa_notifyRemind', JSON.stringify(s.notifyRemind));
-      localStorage.setItem('pa_remindDays', JSON.stringify(s.remindDays));
-      // pa_history は診断のたびに _compareSnapshot が直接書くので、ここでは触らない。
-    }catch(e){}
-  }
-
-  toggleNotifyNew(){ this.setState(s=>({notifyNew:!s.notifyNew}), ()=>this.persist()); }
-  toggleNotifyRemind(){ this.setState(s=>({notifyRemind:!s.notifyRemind}), ()=>this.persist()); }
-  setRemindDays(n){ this.setState({remindDays:n}, ()=>this.persist()); }
+  toggleNotifyNew(){ this.setState(s=>({notifyNew:!s.notifyNew})); }
+  toggleNotifyRemind(){ this.setState(s=>({notifyRemind:!s.notifyRemind})); }
+  setRemindDays(n){ this.setState({remindDays:n}); }
 
   async testNotify(){
     if(!('Notification' in window)){
@@ -647,12 +628,12 @@ class Component extends DCLogic {
   setTempLevel(l){ this.setState({tempLevel:l}); }
   startCheck(){
     const picked = Object.keys(this.state.tempSel).filter(k=>this.state.tempSel[k]);
-    this.setState({picked, level:this.state.tempLevel}, ()=>this.persist());
+    this.setState({picked, level:this.state.tempLevel});
   }
   resetPicked(){
     const tempSel = {};
     (this.state.picked||[]).forEach(id=>tempSel[id]=true);
-    this.setState({picked:null, tempSel}, ()=>this.persist());
+    this.setState({picked:null, tempSel});
   }
   setView(v){
     this.setState({view:v});
@@ -663,7 +644,7 @@ class Component extends DCLogic {
         const allowedSev = SEV_ALLOW[this.state.level] || SEV_ALLOW.standard;
         const ids = this.state.data.apps.filter(a=>this.state.picked.includes(a.id)).flatMap(a=>a.items).filter(i=>allowedSev.includes(i.severity)).map(i=>i.id);
         const seen = Array.from(new Set([...this.state.seen, ...ids]));
-        if(seen.length !== this.state.seen.length){ this.setState({seen}, ()=>this.persist()); }
+        if(seen.length !== this.state.seen.length){ this.setState({seen}); }
       }
     });
   }
@@ -672,7 +653,7 @@ class Component extends DCLogic {
       const done = s.done.includes(id) ? s.done.filter(x=>x!==id) : [...s.done, id];
       const seen = s.seen.includes(id) ? s.seen : [...s.seen, id];
       return {done, seen};
-    }, ()=>this.persist());
+    });
   }
 
   openSettings(){ this.setState({activeSheet:'settings'}); }
@@ -691,7 +672,7 @@ class Component extends DCLogic {
       const fresh = await res.json();
       if(!fresh || !Array.isArray(fresh.apps)) return;
       if(fresh.version !== this.state.data.version){
-        this.setState({data:fresh}, ()=>this.persist());
+        this.setState({data:fresh});
       }
     }catch(e){ /* 取得できない場合は内蔵データのまま静かに継続 */ }
   }
@@ -700,7 +681,7 @@ class Component extends DCLogic {
   openEditAccount(id){ this.setState({activeSheet:'accountForm', editingAccountId:id}); }
   deleteAccount(id){
     if(!confirm('この記録を削除しますか？')) return;
-    this.setState(s=>({accounts:s.accounts.filter(a=>a.id!==id)}), ()=>this.persist());
+    this.setState(s=>({accounts:s.accounts.filter(a=>a.id!==id)}));
   }
   saveAccount(){
     const service = this.serviceRef.current.value.trim();
@@ -717,7 +698,7 @@ class Component extends DCLogic {
         accounts = [{id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), service, method, status, memo}, ...s.accounts];
       }
       return {accounts, activeSheet:null, editingAccountId:null};
-    }, ()=>this.persist());
+    });
   }
 
   // ---- 判定モデル ----------------------------------------------------
@@ -740,7 +721,6 @@ class Component extends DCLogic {
       note: (o.note||'') + (o.fix ? '　【改善するには】' + o.fix : ''),
       noteColor: v.color,
       _level: o.level, _severity: o.severity || 'none',
-      _action: o.action || null, _actionLabel: o.actionLabel || '',
     }}}));
   }
 
@@ -775,7 +755,7 @@ class Component extends DCLogic {
   }
 
   async runDiagnostics(){
-    const ids = ['summary','ipv6','dns','webrtc','vpnstatus','blocker','fingerprint','platform','thirdparty','history','storage','scope'];
+    const ids = ['summary','ipv6','dns','webrtc','vpnstatus','blocker','fingerprint','platform','thirdparty','storage','scope'];
     const loading = {};
     ids.forEach(k=>loading[k]={loading:true});
     this.setState({net:loading});
@@ -800,7 +780,6 @@ class Component extends DCLogic {
     ];
     this._safe('scope', ()=>this._emitScope());
     await Promise.all(jobs);
-    this._safe('history', ()=>this._compareSnapshot());
     this._safe('summary', ()=>this._emitSummary());
   }
 
@@ -830,7 +809,7 @@ class Component extends DCLogic {
       text: '異常 '+risks.length+' 件／要確認 '+checks.length+' 件／正常 '+oks.length+' 件',
       rows,
       note:'このツールは「断定は実測でしか行わない」方針です。直接測れたものだけを異常とし、間接的な材料からの推定は要確認で止めます。プライバシー診断では、漏れていないのに漏れて見える誤検知のほうが判断を歪める害が大きいためです。その代わり要確認を握りつぶさず必ず表示し、各項目に確信度を併記しています。'
-        + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、下の「前回からの変化」と合わせて見てください。',
+        + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、気になる項目は「再診断」で数回確かめてください。診断結果はこのページを離れると保存されません。',
     });
   }
 
@@ -850,9 +829,11 @@ class Component extends DCLogic {
         {label:'診断のため外部に渡るもの③', value:'IPアドレス → www.cloudflare.com（エッジ拠点・TLS・WARP状態）、stun.l.google.com（WebRTC検査用STUNサーバー）'},
         {label:'診断のため外部に渡るもの④', value:'IPアドレス → edns.ip-api.com（使用中DNSリゾルバの特定）'},
         {label:'診断のため外部に渡るもの⑤', value:'IPアドレス → Google・Meta・Criteo・Taboola（トラッカー遮断テストの接続先。本文は読み取りません）'},
+        {label:'保存について', value:'診断結果・チェックリストの進捗・連携アカウント台帳を一切保存しません。ページを閉じる、またはリロードすると、すべての状態が消えます。エクスポート機能はありません'},
       ],
       note:'ここが全部「正常」でも、それはブラウザから観測できる範囲が正常というだけです。プライバシー全体の保証ではありません。特にVPN事業者への信頼は、この診断ではなく事業者の監査報告や司法管轄で判断する領域です。'
-        + '　このツールは「あなたが何を漏らしているか」を見せる以上、自分自身が何を外部に渡しているかも隠しません。診断結果・チェック状況・台帳の内容は一切送信しませんが、診断のためにIPアドレスが上記の外部サービスへ渡ります。各項目のカードにも、外部照会か端末内完結かのバッジを付けています。',
+        + '　このツールは「あなたが何を漏らしているか」を見せる以上、自分自身が何を外部に渡しているかも隠しません。診断結果・チェック状況・台帳の内容は一切送信しませんが、診断のためにIPアドレスが上記の外部サービスへ渡ります。各項目のカードにも、外部照会か端末内完結かのバッジを付けています。'
+        + '　継続して使いたい場合は、確認のたびに手動で記録してください。ソースコードは全公開されているので、「保存していない」という宣言が事実かどうかはコード上で誰でも検証できます。',
     });
   }
 
@@ -944,13 +925,11 @@ class Component extends DCLogic {
     // 多数のユーザーが同じ値を返すため識別には使いにくい。
     const gpuStr = String(sig.gpu||'');
     const gpuGeneric = /^(mozilla|generic|google inc\.?|apple gpu)$/i.test(gpuStr.trim());
-    // 前回のCanvasハッシュと違えば、値をランダム化する対策が働いている。
-    let canvasRandomized = false;
-    try{
-      const h = JSON.parse(localStorage.getItem('pa_history') || '[]');
-      const prev = h.length ? h[h.length-1] : null;
-      if(prev && prev.canvas && sig.canvas && prev.canvas !== sig.canvas && prev.screen === sig.screen) canvasRandomized = true;
-    }catch(e){}
+    // 前回（同じセッション内の直前の診断）とCanvasハッシュが違えば、値を
+    // ランダム化する対策が働いている。ノーログ方針のためメモリ上の
+    // this.state.prevCanvas とだけ比較する——保存はしない。
+    const prevCanvas = this.state.prevCanvas;
+    const canvasRandomized = !!(prevCanvas && sig.canvas && prevCanvas.canvas !== sig.canvas && prevCanvas.screen === sig.screen);
     const rfpActive = rfpIsActive(rfp);
     // タイムゾーンはIPの国と食い違うと居住地域の推定材料になるが、指紋対策
     // ブラウザはUTC固定が仕様なので、その場合の不一致は正常。
@@ -974,6 +953,9 @@ class Component extends DCLogic {
       level='info'; sev='low';
       why='識別力の高い信号は限定的でした。取得できた信号は '+present.length+' 種類です。';
     }
+    // 次回の再診断でランダム化を検出できるよう、メモリ上にだけ憶えておく
+    // （保存はしない。リロードで消える）。
+    this.setState({prevCanvas: {canvas: sig.canvas, screen: sig.screen}});
     this._emit('fingerprint', {
       level, confidence:'est', severity:sev, text: combined,
       rows: [
@@ -1063,95 +1045,20 @@ class Component extends DCLogic {
       const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : null;
       rows.push({label:'Service Worker', value: regs ? regs.length+' 件' : '非対応'});
     }catch(e){}
+    // ノーログ方針への転換で、このカードの役割が変わった。以前は「何を
+    // 残しているかの自己開示」だったが、いまはこのアプリが localStorage
+    // に一切書き込まなくなったため、常に0件になるはずで、それ自体が
+    // 「保存していない」という宣言の裏付けになる。値が0でなければ、それは
+    // このコードが謳っている方針と矛盾しているということなので、要確認
+    // として扱う。
+    const nothingStored = lsCount===0 && cookieVal==='使用していません';
     this._emit('storage', {
-      level:'info', confidence:'high', severity:'none',
-      text: lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB', rows,
-      why:'このアプリ自身が端末に保存している量の実測値です。',
-      note:'監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出しています。チェック状況・台帳・設定はすべて localStorage（pa_ で始まるキー）に入っており、Cookieも外部送信も使っていません。他サイトの保存内容はブラウザが分離しているため、こちらからは見えません。端末を他人と共有・譲渡する場合は、下のボタンからいつでもすべて削除できます。',
-      fix:'Safari の 設定 → 詳細 → Webサイトデータ から該当サイトを削除しても同じことができます。',
-      action: ()=>this.clearAllData(), actionLabel:'保存データをすべて削除',
-    });
-  }
-
-  // ---- 保存データの削除（端末の共有・譲渡を想定） ----
-  clearAllData(){
-    if(!confirm('保存されているデータをすべて削除します。チェック状況・連携アカウント台帳・監査レベル・通知設定・診断履歴が消え、元には戻せません。続けますか？')) return;
-    try{
-      Object.keys(localStorage).filter(k=>k.startsWith('pa_')).forEach(k=>localStorage.removeItem(k));
-    }catch(e){}
-    location.reload();
-  }
-
-  // ---- 前回からの変化（劣化検知） ----
-  _compareSnapshot(){
-    const n = this.state.net || {};
-    const lv = k => (n[k] && n[k]._level) || null;
-    const rowOf = (k, label) => ((n[k] && n[k].rows) || []).reduce((a,r)=>r.label===label?r.value:a, null);
-    let canvas = null, screenSig = null;
-    try{
-      const c = rowOf('fingerprint','Canvas描画のハッシュ');
-      canvas = c ? String(c).split('（')[0] : null;
-      screenSig = rowOf('fingerprint','画面と拡大率');
-    }catch(e){}
-    const snap = {
-      at: new Date().toISOString().slice(0,16).replace('T',' '),
-      exitIp: rowOf('vpnstatus','IPv4アドレス'),
-      vpnLv: lv('vpnstatus'), dnsLv: lv('dns'), webrtcLv: lv('webrtc'),
-      ipv6Lv: lv('ipv6'), blockerLv: lv('blocker'), fpLv: lv('fingerprint'), platformLv: lv('platform'), tpLv: lv('thirdparty'),
-      blockedN: (()=>{ const m=/遮断 (\d+) 件/.exec((n.blocker&&n.blocker.text)||''); return m?parseInt(m[1],10):null; })(),
-      allowedN: (()=>{ const m=/通過 (\d+) 件/.exec((n.blocker&&n.blocker.text)||''); return m?parseInt(m[1],10):null; })(),
-      canvas, screen: screenSig,
-    };
-    const FIELDS = [
-      ['platformLv','OS・ブラウザの更新'], ['vpnLv','VPN接続状態'], ['dnsLv','DNSリーク'],
-      ['webrtcLv','WebRTCリーク'], ['ipv6Lv','IPv6の露出'], ['fpLv','ブラウザ指紋'], ['tpLv','サードパーティCookie'], ['exitIp','出口IP'],
-    ];
-    let hist = [];
-    try{ hist = JSON.parse(localStorage.getItem('pa_history') || '[]'); }catch(e){}
-    const prev = hist.length ? hist[hist.length-1] : null;
-    if(!prev){
-      try{ localStorage.setItem('pa_history', JSON.stringify([snap])); }catch(e){}
-      this._emit('history', {
-        level:'info', confidence:'high', severity:'none', text:'初回の記録を保存しました',
-        rows: FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
-        why:'比較対象となる過去の記録がまだありません。',
-        note:'次回以降、この記録と比べて変化した項目だけを並べます。設定が勝手に元へ戻る類の事故は、こうして定点観測しないと気づけません。記録は端末内にのみ保存され、直近10回分だけ残します。',
-      });
-      return;
-    }
-    const RANK = {ok:0, info:1, unknown:2, check:3, risk:4};
-    const changed = FIELDS.filter(([k])=>String(prev[k]) !== String(snap[k]));
-    // 悪化＝判定の段階が下がったものだけ。判定不能への変化は悪化に数えない。
-    const worse = changed.filter(([k])=>{
-      if(!/Lv$/.test(k)) return false;
-      const a = RANK[prev[k]], b = RANK[snap[k]];
-      if(a==null || b==null) return false;
-      if(snap[k]==='unknown') return false;
-      return b > a;
-    });
-    // 遮断数の減少は、判定不能が増えただけの場合を除いて悪化とみなす。
-    let blockerWorse = false;
-    if(prev.blockedN!=null && snap.blockedN!=null && snap.blockedN < prev.blockedN
-       && prev.allowedN!=null && snap.allowedN!=null && snap.allowedN > prev.allowedN){
-      blockerWorse = true;
-      changed.push(['blockedN','トラッカー遮断']);
-      worse.push(['blockedN','トラッカー遮断']);
-    }
-    hist.push(snap);
-    if(hist.length > 10) hist = hist.slice(-10);
-    try{ localStorage.setItem('pa_history', JSON.stringify(hist)); }catch(e){}
-    const nameOf = k => (FIELDS.find(f=>f[0]===k)||[null,k])[1];
-    this._emit('history', {
-      level: worse.length ? 'check' : 'info',
-      confidence:'high', severity: worse.length ? 'medium' : 'none',
-      text: changed.length ? changed.length+' 項目が前回と変化' : '前回から変化なし',
-      rows: changed.length
-        ? changed.map(([k,l])=>({label:(l||nameOf(k))+(worse.some(w=>w[0]===k)?'（悪化）':''), value: String(prev[k])+' → '+String(snap[k])}))
-        : FIELDS.map(([k,l])=>({label:l, value: snap[k]==null ? '—' : String(snap[k])})),
-      why: worse.length
-        ? worse.map(w=>w[1]||nameOf(w[0])).join('・')+' の判定が前回より下がりました。'
-        : (changed.length ? '変化はありますが、判定の段階が下がったものはありません。' : '前回の記録と同じ状態です。'),
-      note:'比較しているのは各項目の判定の段階です。出口IPや指紋ハッシュは回線や環境が変われば当然変わるため、値が変わっただけでは悪化として扱いません。判定不能への変化も悪化には数えません——通信が一時的に不安定だっただけの可能性があるためです。前回の記録：'+prev.at+'（端末内に直近10回分のみ保存）',
+      level: nothingStored ? 'ok' : 'check', confidence:'high', severity: nothingStored ? 'none' : 'medium',
+      text: nothingStored ? '何も保存していません' : (lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB'), rows,
+      why: nothingStored
+        ? 'localStorage・Cookieのいずれも空でした。このアプリはチェックリストの進捗・連携アカウント台帳・監査レベル・通知設定のいずれも保存しません。ページを閉じる、またはリロードすると、すべての状態が消えます。'
+        : '本来ゼロのはずの保存領域に何かが残っています。ブラウザの拡張機能や別の原因の可能性があります。',
+      note:'自己申告ではなく実測値で示しています。ソースコードは全公開されているので、「保存していない」という宣言が事実かどうかはコード上で誰でも検証できます。継続して記録を残したい場合は、確認のたびに手動でメモしてください——エクスポート機能はありません。',
     });
   }
 
@@ -1554,8 +1461,7 @@ class Component extends DCLogic {
         {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報・タイムゾーン・Do Not Trackなどから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。重要なのは値が取得できるかではなく、標準化やランダム化によって他人と同じ値になっているかどうかです。', dep:[]},
         {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準はメジャーバージョンのみで比較します（マイナー更新のたびに配信データを追随させないため）。', dep:[]},
         {id:'thirdparty', title:'サードパーティCookieの遮断', desc:'サードパーティCookie（他サイトを横断した追跡に使われる）が既定でブロックされる構成かどうかを、ブラウザの種類とAPI対応状況から推定します。実際に書き込み・読み出しを試す実測ではありません——別ドメインを使う必要があり、新たな外部依存を増やすことになるため見送りました。', dep:[]},
-        {id:'history', title:'前回からの変化（劣化検知）', desc:'診断結果を端末内に記録し、前回と比べて判定の段階が変わった項目だけを並べます。値そのものの変化（出口IPや指紋ハッシュ）は、回線や環境が変われば当然変わるため悪化としては扱いません。設定が勝手に元へ戻る類の事故は、定点観測しないと気づけません。', dep:[]},
-        {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているデータ量の実測です。localStorage・Cookie・IndexedDB・Cache Storage・Service Worker の使用状況を並べます。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。他サイトの保存内容はブラウザが分離しているので、こちらからは見えません。', dep:[]},
+        {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているものの実測です。ノーログ方針のため、localStorage・Cookieともに常に0件のはずで、それ自体が「保存していない」という宣言の裏付けになります。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。', dep:[]},
         {id:'scope', title:'この診断で分かること・分からないこと', desc:'すべて「正常」でも、それはブラウザから観測できる範囲が正常というだけで、プライバシー全体の保証ではありません。VPN事業者のログ保持、端末のマルウェア感染、HTTPSの傍受、他アプリの設定値、そして診断のため何が外部に渡るかは、この診断の守備範囲の外にあります。過信を避けるために最後に必ず読んでください。', dep:[]},
       ];
       // 指摘1：各カードに「外部照会」か「端末内で完結」かのバッジを付ける。
@@ -1575,7 +1481,6 @@ class Component extends DCLogic {
           resultText: r.text||'', resultColor: r.color||'oklch(0.22 0.01 40)',
           hasNote: !!r.note, note:r.note||'', noteColor: r.noteColor||'oklch(0.5 0.01 40)',
           hasRows: !!(r.rows && r.rows.length), rows: r.rows||[],
-          hasAction: !!r._action, actionLabel: r._actionLabel||'', action: r._action || (()=>{}),
         };
       };
       // 総合評価は他の項目とは役割が違うので、専用ブロックとして別に描く。
