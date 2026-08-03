@@ -228,7 +228,7 @@ input,select,textarea{font-family:inherit}
     </sc-if>
 
     <sc-if value="{{ isNetworkView }}">
-      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 18px">VPN接続やプライバシー保護が正常に機能しているか確認します。<b>診断結果の送信・保存は行いません。</b>ただし診断のため、あなたのIPアドレスが api.ipify.org・ipwho.is・www.cloudflare.com・edns.ip-api.com・トラッカー遮断テストの接続先（Google・Meta・Criteo・Taboola）に渡ります。どの項目が外部に照会するかは、各カードのバッジと、末尾の「この診断で分かること・分からないこと」に一覧があります。</p>
+      <p style="font:italic 400 12.5px/1.8 'Source Serif 4',serif;color:oklch(0.45 0.01 40);margin:0 0 18px">VPN接続やプライバシー保護が正常に機能しているか確認します。<b>診断結果の送信・保存は行いません。</b>ただし診断のため、あなたのIPアドレスが api.ipify.org・ipwho.is・www.cloudflare.com・edns.ip-api.com・トラッカー遮断テストの接続先（Google・Meta・Criteo・Taboola）に渡ります。どの項目が外部に照会するかは、各カードのバッジに表示しています。</p>
 
       <sc-if value="{{ isNetworkNotStarted }}">
         <div style="border:1px dashed oklch(0.7 0.01 60);border-radius:4px;padding:16px;background:oklch(0.99 0.005 85);margin-bottom:12px">
@@ -743,7 +743,7 @@ class Component extends DCLogic {
   }
 
   async runDiagnostics(){
-    const ids = ['summary','ipv4','ipv6','dns','webrtc','blocker','fingerprint','platform','thirdparty','storage','scope'];
+    const ids = ['summary','ipv4','ipv6','dns','webrtc','blocker','fingerprint','platform','thirdparty'];
     const loading = {};
     ids.forEach(k=>loading[k]={loading:true});
     this.setState({net:loading});
@@ -761,12 +761,10 @@ class Component extends DCLogic {
       this._safe('ipv6', ()=>this._checkIPv6(ipInfo)),
       this._safe('webrtc', ()=>this._checkWebRTC(ipInfo, rfp)),
       this._safe('blocker', ()=>this._checkBlocker()),
-      this._safe('storage', ()=>this._checkStorage()),
       this._safe('thirdparty', ()=>this._checkThirdPartyCookies()),
       this._safe('fingerprint', ()=>this._checkFingerprint(rfp, ipInfo)),
       this._safe('platform', ()=>this._checkPlatform()),
     ];
-    this._safe('scope', ()=>this._emitScope());
     await Promise.all(jobs);
     this._safe('summary', ()=>this._emitSummary());
   }
@@ -774,7 +772,6 @@ class Component extends DCLogic {
   // ---- 総合評価 ----
   _emitSummary(){
     const n = this.state.net || {};
-    // 自己開示（storage）と診断範囲（scope）は利用者についての所見ではないので集計しない。
     const TITLES = {ipv6:'IPv6の露出', dns:'DNSリーク',
       webrtc:'WebRTCリーク',
       blocker:'トラッカー遮断', fingerprint:'ブラウザ指紋', platform:'OS・ブラウザの更新', thirdparty:'サードパーティCookie'};
@@ -805,29 +802,6 @@ class Component extends DCLogic {
       rows,
       note:'このツールは「断定は実測でしか行わない」方針です。直接測れたものだけを異常とし、間接的な材料からの推定は要確認で止めます。プライバシー診断では、漏れていないのに漏れて見える誤検知のほうが判断を歪める害が大きいためです。その代わり要確認を握りつぶさず必ず表示し、各項目に確信度を併記しています。'
         + '　なお同じ環境なら同じ結果になりますが、出口IP・指紋ハッシュ・トラッカー遮断の結果は、回線状況やタイムアウトによって実行ごとに変動します。1回の結果で判断せず、気になる項目は「再診断」で数回確かめてください。診断結果はこのページを離れると保存されません。',
-    });
-  }
-
-  // ---- この診断で分かること・分からないこと ----
-  _emitScope(){
-    this._emit('scope', {
-      level:'info', confidence:'high', severity:'none', text:'診断範囲の明示',
-      rows:[
-        {label:'分かること', value:'ブラウザから外部にどう見えているか（IP・DNS・WebRTC・指紋・トラッカー遮断の実測）'},
-        {label:'分からないこと①', value:'VPN事業者がログを保持しているかどうか。事業者の運用は外部から検証できません'},
-        {label:'分からないこと②', value:'端末のマルウェア感染や不正な構成プロファイル'},
-        {label:'分からないこと③', value:'企業内などでのHTTPS傍受（中間者による証明書差し替え）'},
-        {label:'分からないこと④', value:'他アプリの設定値。iOSのサンドボックスにより読み取り不可能です'},
-        {label:'分からないこと⑤', value:'過去に既に漏れた情報。この診断は現時点の状態しか見ません'},
-        {label:'診断のため外部に渡るもの①', value:'IPアドレス → api.ipify.org / api6.ipify.org（アドレスの取得）'},
-        {label:'診断のため外部に渡るもの②', value:'IPアドレス → ipwho.is（登録組織・所在地の逆引き）'},
-        {label:'診断のため外部に渡るもの③', value:'IPアドレス → www.cloudflare.com（エッジ拠点・TLS・WARP状態）、stun.l.google.com（WebRTC検査用STUNサーバー）'},
-        {label:'診断のため外部に渡るもの④', value:'IPアドレス → edns.ip-api.com（使用中DNSリゾルバの特定）'},
-        {label:'診断のため外部に渡るもの⑤', value:'IPアドレス → Google・Meta・Criteo・Taboola（トラッカー遮断テストの接続先。本文は読み取りません）'},
-      ],
-      note:'ここが全部「正常」でも、それはブラウザから観測できる範囲が正常というだけです。プライバシー全体の保証ではありません。特にVPN事業者への信頼は、この診断ではなく事業者の監査報告や司法管轄で判断する領域です。'
-        + '　このツールは「あなたが何を漏らしているか」を見せる以上、自分自身が何を外部に渡しているかも隠しません。診断結果・チェック状況・台帳の内容は一切送信しませんが、診断のためにIPアドレスが上記の外部サービスへ渡ります。各項目のカードにも、外部照会か端末内完結かのバッジを付けています。'
-        + '　継続して使いたい場合は、確認のたびに手動で記録してください。ソースコードは全公開されているので、「保存していない」という宣言が事実かどうかはコード上で誰でも検証できます。',
     });
   }
 
@@ -1011,48 +985,6 @@ class Component extends DCLogic {
       why: stale ? '読み取ったバージョンが基準値を下回っています。' : (iosVer ? '読み取ったバージョンが基準値を満たしています。' : 'User-Agentからバージョンを読み取れませんでした。'),
       note:'User-Agentは書き換えられるため、この判定は「推測」です。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準値は配信データの minVersions で管理しており、新しいOSが出れば更新だけで全端末の判定が変わります。',
       fix: stale ? '設定 → 一般 → ソフトウェアアップデート から更新します。' : null,
-    });
-  }
-
-  // ---- このアプリが端末に残しているもの ----
-  async _checkStorage(){
-    const rows = [];
-    let lsCount = 0, bytes = 0;
-    try{
-      const keys = Object.keys(localStorage);
-      lsCount = keys.length;
-      keys.forEach(k=>{ bytes += k.length + (localStorage.getItem(k)||'').length; });
-    }catch(e){}
-    rows.push({label:'localStorage の項目数', value: lsCount+' 件（約 '+Math.ceil(bytes/1024)+' KB）'});
-    let cookieVal = '確認できませんでした';
-    try{ cookieVal = document.cookie ? document.cookie.split(';').length+' 件' : '使用していません'; }catch(e){}
-    rows.push({label:'Cookie', value: cookieVal});
-    try{
-      const dbs = indexedDB.databases ? await indexedDB.databases() : null;
-      rows.push({label:'IndexedDB', value: dbs ? dbs.length+' 件' : '列挙非対応のブラウザ'});
-    }catch(e){ rows.push({label:'IndexedDB', value:'確認できませんでした'}); }
-    try{
-      const ks = window.caches ? await caches.keys() : null;
-      rows.push({label:'Cache Storage', value: ks ? ks.length+' 件' : '非対応'});
-    }catch(e){}
-    try{
-      const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : null;
-      rows.push({label:'Service Worker', value: regs ? regs.length+' 件' : '非対応'});
-    }catch(e){}
-    // ノーログ方針への転換で、このカードの役割が変わった。以前は「何を
-    // 残しているかの自己開示」だったが、いまはこのアプリが localStorage
-    // に一切書き込まなくなったため、常に0件になるはずで、それ自体が
-    // 「保存していない」という宣言の裏付けになる。値が0でなければ、それは
-    // このコードが謳っている方針と矛盾しているということなので、要確認
-    // として扱う。
-    const nothingStored = lsCount===0 && cookieVal==='使用していません';
-    this._emit('storage', {
-      level: nothingStored ? 'ok' : 'check', confidence:'high', severity: nothingStored ? 'none' : 'medium',
-      text: nothingStored ? '何も保存していません' : (lsCount+' 件 / 約 '+Math.ceil(bytes/1024)+' KB'), rows,
-      why: nothingStored
-        ? 'localStorage・Cookieのいずれも空でした。このアプリはチェックリストの進捗・連携アカウント台帳・監査レベル・通知設定のいずれも保存しません。ページを閉じる、またはリロードすると、すべての状態が消えます。'
-        : '本来ゼロのはずの保存領域に何かが残っています。ブラウザの拡張機能や別の原因の可能性があります。',
-      note:'自己申告ではなく実測値で示しています。ソースコードは全公開されているので、「保存していない」という宣言が事実かどうかはコード上で誰でも検証できます。継続して記録を残したい場合は、確認のたびに手動でメモしてください——エクスポート機能はありません。',
     });
   }
 
@@ -1412,8 +1344,6 @@ class Component extends DCLogic {
         {id:'fingerprint', title:'ブラウザ指紋の識別性', desc:'Canvas描画・GPU名・フォント構成・画面情報・タイムゾーン・Do Not Trackなどから、Cookieを消しても同一端末と判定されうる識別信号がいくつ取得できるかを測ります。トラッカーを遮断できていても、この経路での識別は止まりません。重要なのは値が取得できるかではなく、標準化やランダム化によって他人と同じ値になっているかどうかです。', dep:[]},
         {id:'platform', title:'OS・ブラウザの更新状況', desc:'ユーザーエージェントから判定したOSとブラウザのバージョンを、配信データの基準値と比較します。プライバシー設定をどれだけ詰めても、OSが古いままでは公開済みの脆弱性がそのまま残り、そこが最も弱い箇所になります。基準はメジャーバージョンのみで比較します（マイナー更新のたびに配信データを追随させないため）。', dep:[]},
         {id:'thirdparty', title:'サードパーティCookieの遮断', desc:'サードパーティCookie（他サイトを横断した追跡に使われる）が既定でブロックされる構成かどうかを、ブラウザの種類とAPI対応状況から推定します。実際に書き込み・読み出しを試す実測ではありません——別ドメインを使う必要があり、新たな外部依存を増やすことになるため見送りました。', dep:[]},
-        {id:'storage', title:'このアプリが端末に残しているもの', desc:'このアプリ自身が端末に保存しているものの実測です。ノーログ方針のため、localStorage・Cookieともに常に0件のはずで、それ自体が「保存していない」という宣言の裏付けになります。監査する側が何を残しているかを開示しないのは筋が通らないため、自己申告ではなく実測値を出します。', dep:[]},
-        {id:'scope', title:'この診断で分かること・分からないこと', desc:'すべて「正常」でも、それはブラウザから観測できる範囲が正常というだけで、プライバシー全体の保証ではありません。VPN事業者のログ保持、端末のマルウェア感染、HTTPSの傍受、他アプリの設定値、そして診断のため何が外部に渡るかは、この診断の守備範囲の外にあります。過信を避けるために最後に必ず読んでください。', dep:[]},
       ];
       // 指摘1：各カードに「外部照会」か「端末内で完結」かのバッジを付ける。
       // 診断ツール自身が何を外部に渡しているかを、利用者から見えない状態に
