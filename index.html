@@ -263,10 +263,11 @@ input,select,textarea{font-family:inherit}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const APP_DATA = {"version":"2026-08-07a","minVersions":{"ios":"26.0","safari":"26.0"},"apps":[
+const APP_DATA = {"version":"2026-08-07b","minVersions":{"ios":"26.0","safari":"26.0"},"apps":[
 {"id":"line","name":"LINE","icon":"L","category":"app","items":[
   {"id":"line-talkroom-info","title":"トークルーム情報の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供 → トークルーム情報","severity":"high","why":"トークルーム内のURLやスタンプの利用状況が、サービス改善名目でLINEヤフーに送られる。既定はオン。","verifiedAt":"2026-07-29"},
   {"id":"line-web-ads","title":"ウェブ追跡型広告の受信をオフ","path":"設定 → プライバシー管理 → 情報の提供 → ウェブ追跡型広告の受信","severity":"medium","why":"外部サイトの閲覧履歴をもとにLINE内の広告が最適化される。","watch":"利用者から、オフにしたはずが後日オンに戻っていたという報告あり。VPN等のネットワーク経路の対策では防げない（LINE側のアカウント設定が原因のため）。定期的な再確認が必要。","verifiedAt":"2026-08-07"},
+  {"id":"line-attribute-ads","title":"広告表示に利用する「属性情報」をオフ","path":"設定 → プライバシー管理 → 広告の設定 → 広告表示に利用するデータの設定 → 属性情報","severity":"medium","why":"「子供の有無」「最終学歴」「職業」「個人年収」等を、LINE関連サービスの利用状況（トーク内容そのものではない）から推定して広告配信に使う仕組み。「ウェブ追跡型広告の受信」とは別設定で、そちらをオフにしても止まらない。既定はオン。","watch":"利用者から、オフにしたはずのものが知らぬ間にオンになっていたという報告あり。定期的な再確認が必要。","verifiedAt":"2026-08-07"},
   {"id":"line-ocr-photo","title":"文字認識用の写真の提供をオフ","path":"設定 → プライバシー管理 → 情報の提供","severity":"high","why":"OCR精度向上のために、送受信した写真が提供対象になる。","verifiedAt":"2026-07-29"},
   {"id":"line-delete-past","title":"過去に提供済みの情報を削除","path":"設定 → プライバシー管理 → 情報の提供 → 情報の削除","severity":"medium","why":"オフにしても過去分は残る。削除は別操作。","verifiedAt":"2026-07-29"},
   {"id":"line-id-search","title":"IDによる友だち追加を許可をオフ","path":"設定 → プライバシー管理 → IDによる友だち追加を許可","severity":"medium","why":"IDを総当たりされて見知らぬ相手に追加されるのを防ぐ。","verifiedAt":"2026-07-29"},

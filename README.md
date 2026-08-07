@@ -19,7 +19,7 @@ iPhone個人情報保護監査アプリ。
 初回選択画面は **OS / アプリ / サービス** に分けて表示する。各アプリの `category`（`os` / `app` / `service`）で振り分けており、値が無い古いデータは `app` として扱う。
 
 LINE・Google/Gemini・iOS 26・Instagram/Facebook・X・TikTok・Amazon/Alexa・ChatGPT・GitHub・Discord・WhatsApp・Yahoo! JAPAN・PayPay・VPN の
-**14サービス・42項目**のプライバシー設定チェックリスト。
+**14サービス・43項目**のプライバシー設定チェックリスト。
 
 各項目に「設定パス」「なぜ重要か」「既定値はどうなっているか」を明記している。
 X（Grok）へのデータ共有のように、**リロード後に設定が勝手にオンへ戻る既知の不具合**があるものは、項目ごとに注記フラグを立てている。
